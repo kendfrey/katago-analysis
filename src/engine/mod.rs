@@ -1,0 +1,214 @@
+//! KataGo's analysis protocol, implemented as a low-level stream of unsynchronized messages.
+//!
+//! See [KataGo Parallel Analysis Engine](https://github.com/lightvector/KataGo/blob/master/docs/Analysis_Engine.md)
+//! for official documentation of the analysis engine.
+//!
+//! ```
+//! use katago_analysis::{
+//!     Error, Player, Rules,
+//!     engine::{AnalysisRequest, AnalysisResponse, Engine, LaunchOptions, Request, Response},
+//! };
+//! use tokio_stream::StreamExt;
+//!
+//! async fn example(
+//!     katago_path: String,
+//!     analysis_config_path: String,
+//!     model_path: String,
+//! ) -> Result<(), Error> {
+//!     let options = LaunchOptions::new(katago_path, analysis_config_path, model_path);
+//!     let mut engine = Engine::launch(&options)?;
+//!
+//!     let request = AnalysisRequest::new(
+//!         "1".to_string(),
+//!         Rules::chinese(),
+//!         19,
+//!         19,
+//!         vec![
+//!             (Player::Black, "Q16".to_string()),
+//!             (Player::White, "D4".to_string()),
+//!         ],
+//!     );
+//!     engine.stdin.send(&Request::Analyze(request)).await?;
+//!     match engine.stdout.try_next().await? {
+//!         Some(Response::Analyze(AnalysisResponse { move_infos, .. })) => {
+//!             println!(
+//!                 "Best move: {} ({:.1}%)",
+//!                 move_infos[0].mv,
+//!                 move_infos[0].winrate * 100.0
+//!             );
+//!             println!("{:?}", move_infos[0]);
+//!         }
+//!         _ => println!("Something went wrong"),
+//!     };
+//!     Ok(())
+//! }
+//! ```
+
+use std::{io, process::Stdio};
+
+use tokio::{
+    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
+    process::{Child, ChildStderr, ChildStdin, ChildStdout, Command},
+};
+use tokio_stream::{StreamExt, wrappers::LinesStream};
+
+use crate::{Config, Error};
+
+mod request;
+pub use request::*;
+
+mod response;
+pub use response::*;
+
+/// Command line options for launching KataGo.
+#[derive(Debug, Clone)]
+pub struct LaunchOptions {
+    /// The path to the KataGo executable.
+    pub katago_path: String,
+
+    /// The path to the config file.
+    pub config_path: String,
+
+    /// The path to the model file.
+    pub model_path: String,
+
+    /// If true, KataGo's stderr output will be produced on the current process's stderr.
+    /// Otherwise, it will be made available as [`Engine::stderr`].
+    pub inherit_stderr: bool,
+
+    /// The path to the humanSL model file.
+    pub human_model_path: Option<String>,
+
+    /// Overrides to pass via `-override-config`.
+    pub override_config: Option<Config>,
+}
+
+impl LaunchOptions {
+    /// Creates a new [`LaunchOptions`].
+    pub fn new(katago_path: String, config_path: String, model_path: String) -> Self {
+        Self {
+            katago_path,
+            config_path,
+            model_path,
+            inherit_stderr: false,
+            human_model_path: None,
+            override_config: None,
+        }
+    }
+
+    /// Causes KataGo's stderr output to be produced on the current process's stderr.
+    pub fn with_inherit_stderr(mut self) -> Self {
+        self.inherit_stderr = true;
+        self
+    }
+
+    /// Loads the humanSL model from the given path.
+    pub fn with_human_model(mut self, human_model_path: String) -> Self {
+        self.human_model_path = Some(human_model_path);
+        self
+    }
+
+    /// Passes the given options via `-override-config`.
+    pub fn with_override_config(mut self, config: Config) -> Self {
+        self.override_config = Some(config);
+        self
+    }
+}
+
+/// An instance of the KataGo analysis engine, launched as a child process.
+#[derive(Debug)]
+pub struct Engine {
+    /// Sends requests to the analysis engine.
+    ///
+    /// Drop this to close the engine's stdin and request KataGo to exit.
+    pub stdin: EngineStdin,
+
+    /// A [`Stream`][futures_core::stream::Stream] of [`Response`]s from the analysis engine.
+    pub stdout: EngineStdout,
+
+    /// The analysis engine's stderr output, if available.
+    pub stderr: Option<ChildStderr>,
+
+    /// The engine process.
+    pub child_process: Child,
+}
+
+impl Engine {
+    /// Launches the KataGo analysis engine with the given options.
+    pub fn launch(config: &LaunchOptions) -> Result<Engine, Error> {
+        let mut cmd = Command::new(&config.katago_path);
+        cmd.stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(if config.inherit_stderr {
+                Stdio::inherit()
+            } else {
+                Stdio::piped()
+            })
+            .arg("analysis")
+            .arg("-config")
+            .arg(&config.config_path)
+            .arg("-model")
+            .arg(&config.model_path);
+
+        if let Some(human_model_path) = &config.human_model_path {
+            cmd.arg("-human-model").arg(human_model_path);
+        }
+
+        if let Some(override_config) = &config.override_config {
+            cmd.arg("-override-config").arg(
+                override_config
+                    .to_command_line_arg()
+                    .map_err(Error::UnserializableConfig)?,
+            );
+        }
+
+        let mut child_process = cmd.spawn().map_err(Error::Io)?;
+        let stdin = child_process.stdin.take().ok_or(Error::StdinUnavailable)?;
+        let stdout = child_process
+            .stdout
+            .take()
+            .ok_or(Error::StdoutUnavailable)?;
+        let stdout_stream: EngineStdout =
+            LinesStream::new(BufReader::new(stdout).lines()).map(|line| {
+                serde_json::from_str::<Response>(&line.map_err(Error::Io)?)
+                    .map_err(Error::Serialization)
+            });
+
+        Ok(Engine {
+            stdin: EngineStdin(stdin),
+            stdout: stdout_stream,
+            stderr: child_process.stderr.take(),
+            child_process,
+        })
+    }
+}
+
+/// Sends requests to the analysis engine.
+///
+/// When dropped, this will close the engine's stdin and request KataGo to exit.
+#[derive(Debug)]
+pub struct EngineStdin(ChildStdin);
+
+impl EngineStdin {
+    /// Sends a [`Request`] to the analysis engine.
+    pub async fn send(&mut self, request: &Request) -> Result<(), Error> {
+        let json = serde_json::to_string(request).map_err(Error::Serialization)?;
+        self.send_raw(&json).await
+    }
+
+    /// Sends a raw string to the analysis engine.
+    pub async fn send_raw(&mut self, request: &str) -> Result<(), Error> {
+        self.0
+            .write_all(request.as_bytes())
+            .await
+            .map_err(Error::Io)?;
+        self.0.write_all(b"\n").await.map_err(Error::Io)?;
+        Ok(())
+    }
+}
+
+/// A [`Stream`][futures_core::stream::Stream] of [`Response`]s from the analysis engine.
+pub type EngineStdout = tokio_stream::adapters::Map<
+    LinesStream<BufReader<ChildStdout>>,
+    fn(Result<String, io::Error>) -> Result<Response, Error>,
+>;
