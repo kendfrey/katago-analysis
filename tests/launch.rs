@@ -75,3 +75,21 @@ async fn override_config() {
             if id == "override_config" && move_infos.is_empty()
     );
 }
+
+#[tokio::test]
+async fn quit_without_waiting() {
+    let _guard = MUTEX.lock().await;
+    let options = launch_options().with_quit_without_waiting();
+    let mut engine = Engine::launch(&options).unwrap();
+    let request = AnalysisRequest::new(
+        "quit_without_waiting".to_string(),
+        Rules::chinese(),
+        19,
+        19,
+        vec![],
+    );
+    engine.stdin.send(&Request::Analyze(request)).await.unwrap();
+    drop(engine.stdin);
+
+    assert_matches!(engine.stdout.next().await, None);
+}

@@ -81,6 +81,9 @@ pub struct LaunchOptions {
 
     /// Overrides to pass via `-override-config`.
     pub override_config: Option<Config>,
+
+    /// If true, the engine will stop immediately when stdin is closed, instead of responding to pending requests.
+    pub quit_without_waiting: bool,
 }
 
 impl LaunchOptions {
@@ -93,6 +96,7 @@ impl LaunchOptions {
             inherit_stderr: false,
             human_model_path: None,
             override_config: None,
+            quit_without_waiting: false,
         }
     }
 
@@ -111,6 +115,12 @@ impl LaunchOptions {
     /// Passes the given options via `-override-config`.
     pub fn with_override_config(mut self, config: Config) -> Self {
         self.override_config = Some(config);
+        self
+    }
+
+    /// Stop immediately when stdin is closed, instead of responding to pending requests.
+    pub fn with_quit_without_waiting(mut self) -> Self {
+        self.quit_without_waiting = true;
         self
     }
 }
@@ -160,6 +170,10 @@ impl Engine {
                     .to_command_line_arg()
                     .map_err(Error::UnserializableConfig)?,
             );
+        }
+
+        if config.quit_without_waiting {
+            cmd.arg("-quit-without-waiting");
         }
 
         let mut child_process = cmd.spawn().map_err(Error::Io)?;
