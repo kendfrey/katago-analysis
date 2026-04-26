@@ -281,6 +281,9 @@ pub struct AnalysisResponse {
     /// The request ID.
     pub id: String,
 
+    /// Whether this is a partial analysis result. `false` indicates no more responses will be sent.
+    pub is_during_search: bool,
+
     /// The position index, where 0 is the position before the first move.
     pub turn_number: usize,
 

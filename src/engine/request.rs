@@ -147,6 +147,9 @@ pub struct AnalysisRequest {
 
     /// Config overrides for this request.
     pub override_settings: Option<Config>,
+
+    /// Report partial analysis results every this many seconds.
+    pub report_during_search_every: Option<f64>,
 }
 
 impl AnalysisRequest {
@@ -171,6 +174,7 @@ impl AnalysisRequest {
             analyze_turns: None,
             max_visits: None,
             override_settings: None,
+            report_during_search_every: None,
         }
     }
 
@@ -213,6 +217,12 @@ impl AnalysisRequest {
     /// Overrides config settings for this request.
     pub fn with_override_settings(mut self, config: Config) -> Self {
         self.override_settings = Some(config);
+        self
+    }
+
+    /// Gets partial analysis results every this many seconds.
+    pub fn with_report_during_search_every(mut self, seconds: f64) -> Self {
+        self.report_during_search_every = Some(seconds);
         self
     }
 }

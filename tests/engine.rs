@@ -154,6 +154,45 @@ mod requests {
     }
 
     #[tokio::test]
+    async fn report_during_search_every() {
+        let mut engine = ENGINE.lock().await;
+        let request = test_request("report_during_search_every")
+            .with_max_visits(1000)
+            .with_report_during_search_every(0.1);
+        engine.stdin.send(&Request::Analyze(request)).await.unwrap();
+
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "report_during_search_every");
+        assert!(response.is_during_search);
+        assert!(response.root_info.visits < 1000);
+
+        engine
+            .stdin
+            .send(&Request::Terminate {
+                id: "report_during_search_every.terminate".to_string(),
+                terminate_id: "report_during_search_every".to_string(),
+                turn_numbers: None,
+            })
+            .await
+            .unwrap();
+
+        let responses = vec![
+            engine.stdout.next().await.unwrap().unwrap(),
+            engine.stdout.next().await.unwrap().unwrap(),
+        ];
+        assert!(responses.iter().any(
+            |r| matches!(r, Response::Terminate { id, terminate_id, .. }
+                if id == "report_during_search_every.terminate" && terminate_id == "report_during_search_every"))
+        );
+        assert!(responses.iter().any(
+            |r| matches!(r, Response::Analyze(AnalysisResponse { id, is_during_search: false, .. })
+                if id == "report_during_search_every"
+            )
+        ));
+    }
+
+    #[tokio::test]
     async fn query_version() {
         let mut engine = ENGINE.lock().await;
         engine
