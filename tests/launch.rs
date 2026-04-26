@@ -50,8 +50,12 @@ async fn human_model() {
 
     assert_matches!(
         engine.stdout.next().await,
-        Some(Ok(Response::QueryModels { id, models }))
-            if id == "human_model" && !models[0].uses_humansl_profile && models[1].uses_humansl_profile
+        Some(Ok(Response::QueryModels { id, models })) => {
+            assert_eq!(id, "human_model");
+            assert_eq!(models.len(), 2);
+            assert!(!models[0].uses_humansl_profile);
+            assert!(models[1].uses_humansl_profile);
+        }
     );
 }
 
@@ -69,11 +73,9 @@ async fn override_config() {
     );
     engine.stdin.send(&Request::Analyze(request)).await.unwrap();
 
-    assert_matches!(
-        engine.stdout.next().await,
-        Some(Ok(Response::Analyze(AnalysisResponse { id, move_infos, .. })))
-            if id == "override_config" && move_infos.is_empty()
-    );
+    let response = assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+    assert_eq!(response.id, "override_config");
+    assert_eq!(response.move_infos.len(), 0);
 }
 
 #[tokio::test]

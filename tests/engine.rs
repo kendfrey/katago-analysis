@@ -46,11 +46,10 @@ mod requests {
         let request = test_request("analyze");
         engine.stdin.send(&Request::Analyze(request)).await.unwrap();
 
-        assert_matches!(
-            engine.stdout.next().await,
-            Some(Ok(Response::Analyze(AnalysisResponse { id, turn_number, .. })))
-                if id == "analyze" && turn_number == 2
-        );
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "analyze");
+        assert_eq!(response.turn_number, 2);
     }
 
     #[tokio::test]
@@ -59,11 +58,11 @@ mod requests {
         let request = test_request("komi").with_komi(0.0);
         engine.stdin.send(&Request::Analyze(request)).await.unwrap();
 
-        assert_matches!(
-            engine.stdout.next().await,
-            Some(Ok(Response::Analyze(AnalysisResponse { id, turn_number, root_info, .. })))
-                if id == "komi" && turn_number == 2 && root_info.winrate > 0.9
-        );
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "komi");
+        assert_eq!(response.turn_number, 2);
+        assert!(response.root_info.winrate > 0.9);
     }
 
     #[tokio::test]
@@ -73,11 +72,10 @@ mod requests {
             .with_white_handicap_bonus(Bonus::NMinusOne);
         engine.stdin.send(&Request::Analyze(request)).await.unwrap();
 
-        assert_matches!(
-            engine.stdout.next().await,
-            Some(Ok(Response::Analyze(AnalysisResponse { id, turn_number, .. })))
-                if id == "white_handicap_bonus" && turn_number == 0
-        );
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "white_handicap_bonus");
+        assert_eq!(response.turn_number, 0);
     }
 
     #[tokio::test]
@@ -86,11 +84,11 @@ mod requests {
         let request = test_lopsided_request("initial_stones");
         engine.stdin.send(&Request::Analyze(request)).await.unwrap();
 
-        assert_matches!(
-            engine.stdout.next().await,
-            Some(Ok(Response::Analyze(AnalysisResponse { id, turn_number, root_info, .. })))
-                if id == "initial_stones" && turn_number == 0 && root_info.winrate < 0.1
-        );
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "initial_stones");
+        assert_eq!(response.turn_number, 0);
+        assert!(response.root_info.winrate < 0.1);
     }
 
     #[tokio::test]
@@ -99,11 +97,11 @@ mod requests {
         let request = test_lopsided_request("initial_player").with_initial_player(Player::Black);
         engine.stdin.send(&Request::Analyze(request)).await.unwrap();
 
-        assert_matches!(
-            engine.stdout.next().await,
-            Some(Ok(Response::Analyze(AnalysisResponse { id, turn_number, root_info, .. })))
-                if id == "initial_player" && turn_number == 0 && root_info.winrate > 0.9
-        );
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "initial_player");
+        assert_eq!(response.turn_number, 0);
+        assert!(response.root_info.winrate > 0.9);
     }
 
     #[tokio::test]
@@ -117,13 +115,13 @@ mod requests {
             engine.stdout.next().await.unwrap().unwrap(),
         ];
         assert!(responses.iter().any(
-            |r| matches!(r, Response::Analyze(AnalysisResponse { id, turn_number, .. })
-                if id == "analyze_turns" && *turn_number == 1
+            |r| matches!(r, Response::Analyze(AnalysisResponse { id, turn_number: 1, .. })
+                if id == "analyze_turns"
             )
         ));
         assert!(responses.iter().any(
-            |r| matches!(r, Response::Analyze(AnalysisResponse { id, turn_number, .. })
-                if id == "analyze_turns" && *turn_number == 2
+            |r| matches!(r, Response::Analyze(AnalysisResponse { id, turn_number: 2, .. })
+                if id == "analyze_turns"
             )
         ));
     }
@@ -134,11 +132,11 @@ mod requests {
         let request = test_request("max_visits").with_max_visits(10);
         engine.stdin.send(&Request::Analyze(request)).await.unwrap();
 
-        assert_matches!(
-            engine.stdout.next().await,
-            Some(Ok(Response::Analyze(AnalysisResponse { id, turn_number, root_info, .. })))
-                if id == "max_visits" && turn_number == 2 && root_info.visits == 10
-        );
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "max_visits");
+        assert_eq!(response.turn_number, 2);
+        assert_eq!(response.root_info.visits, 10);
     }
 
     #[tokio::test]
@@ -148,11 +146,11 @@ mod requests {
             .with_override_settings(Config::new().with("maxVisits", 1));
         engine.stdin.send(&Request::Analyze(request)).await.unwrap();
 
-        assert_matches!(
-            engine.stdout.next().await,
-            Some(Ok(Response::Analyze(AnalysisResponse { id, turn_number, move_infos, .. })))
-                if id == "override_settings" && turn_number == 2 && move_infos.is_empty()
-        );
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "override_settings");
+        assert_eq!(response.turn_number, 2);
+        assert_eq!(response.move_infos.len(), 0);
     }
 
     #[tokio::test]
@@ -217,8 +215,8 @@ mod requests {
         assert!(
             responses
                 .iter()
-                .any(|r| matches!(r, Response::NoResults { id, turn_number }
-                    if id == "terminate.analyze" && *turn_number == 2
+                .any(|r| matches!(r, Response::NoResults { id, turn_number: 2 }
+                    if id == "terminate.analyze"
                 ))
         );
     }
@@ -253,13 +251,13 @@ mod requests {
         assert!(
             responses
                 .iter()
-                .any(|r| matches!(r, Response::NoResults { id, turn_number }
-                    if id == "terminate_turn_numbers.analyze" && *turn_number == 1
+                .any(|r| matches!(r, Response::NoResults { id, turn_number: 1 }
+                    if id == "terminate_turn_numbers.analyze"
                 ))
         );
         assert!(responses.iter().any(
-            |r| matches!(r, Response::Analyze(AnalysisResponse { id, turn_number, .. })
-                if id == "terminate_turn_numbers.analyze" && *turn_number == 2
+            |r| matches!(r, Response::Analyze(AnalysisResponse { id, turn_number: 2, .. })
+                if id == "terminate_turn_numbers.analyze"
             )
         ));
     }
@@ -290,9 +288,7 @@ mod requests {
         assert!(
             responses
                 .iter()
-                .any(|r| matches!(r, Response::NoResults { id, turn_number }
-                    if id == "terminate_all.analyze" && *turn_number == 2
-                ))
+                .any(|r| matches!(r, Response::NoResults { id, turn_number: 2 } if id == "terminate_all.analyze"))
         );
     }
 
@@ -322,13 +318,13 @@ mod requests {
         assert!(
             responses
                 .iter()
-                .any(|r| matches!(r, Response::NoResults { id, turn_number }
-                    if id == "terminate_all_turn_numbers.analyze" && *turn_number == 1
+                .any(|r| matches!(r, Response::NoResults { id, turn_number: 1 }
+                    if id == "terminate_all_turn_numbers.analyze"
                 ))
         );
         assert!(responses.iter().any(
-            |r| matches!(r, Response::Analyze(AnalysisResponse { id, turn_number, .. })
-                if id == "terminate_all_turn_numbers.analyze" && *turn_number == 2
+            |r| matches!(r, Response::Analyze(AnalysisResponse { id, turn_number: 2, .. })
+                if id == "terminate_all_turn_numbers.analyze"
             )
         ));
     }
@@ -393,8 +389,8 @@ mod requests {
         );
         assert_matches!(
             engine.stdout.next().await,
-            Some(Ok(Response::Analyze(AnalysisResponse { id, turn_number, .. })))
-                if id == "field_warning" && turn_number == 2
+            Some(Ok(Response::Analyze(AnalysisResponse { id, turn_number: 2, .. })))
+                if id == "field_warning"
         );
     }
 }
@@ -411,10 +407,9 @@ mod rules {
         };
         engine.stdin.send(&Request::Analyze(request)).await.unwrap();
 
-        assert_matches!(
-            engine.stdout.next().await,
-            Some(Ok(Response::Analyze(AnalysisResponse { id, .. }))) if id == "named_rules"
-        );
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "named_rules");
     }
 
     #[tokio::test]
@@ -434,10 +429,9 @@ mod rules {
         };
         engine.stdin.send(&Request::Analyze(request)).await.unwrap();
 
-        assert_matches!(
-            engine.stdout.next().await,
-            Some(Ok(Response::Analyze(AnalysisResponse { id, .. }))) if id == "explicit_rules"
-        );
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "explicit_rules");
     }
 
     #[tokio::test]
@@ -449,10 +443,9 @@ mod rules {
         };
         engine.stdin.send(&Request::Analyze(request)).await.unwrap();
 
-        assert_matches!(
-            engine.stdout.next().await,
-            Some(Ok(Response::Analyze(AnalysisResponse { id, .. }))) if id == "japanese_rules"
-        );
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "japanese_rules");
     }
 
     #[tokio::test]
@@ -464,10 +457,9 @@ mod rules {
         };
         engine.stdin.send(&Request::Analyze(request)).await.unwrap();
 
-        assert_matches!(
-            engine.stdout.next().await,
-            Some(Ok(Response::Analyze(AnalysisResponse { id, .. }))) if id == "chinese_rules"
-        );
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "chinese_rules");
     }
 
     #[tokio::test]
@@ -479,10 +471,9 @@ mod rules {
         };
         engine.stdin.send(&Request::Analyze(request)).await.unwrap();
 
-        assert_matches!(
-            engine.stdout.next().await,
-            Some(Ok(Response::Analyze(AnalysisResponse { id, .. }))) if id == "chinese_ogs_rules"
-        );
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "chinese_ogs_rules");
     }
 
     #[tokio::test]
@@ -494,10 +485,9 @@ mod rules {
         };
         engine.stdin.send(&Request::Analyze(request)).await.unwrap();
 
-        assert_matches!(
-            engine.stdout.next().await,
-            Some(Ok(Response::Analyze(AnalysisResponse { id, .. }))) if id == "stone_scoring_rules"
-        );
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "stone_scoring_rules");
     }
 
     #[tokio::test]
@@ -509,10 +499,9 @@ mod rules {
         };
         engine.stdin.send(&Request::Analyze(request)).await.unwrap();
 
-        assert_matches!(
-            engine.stdout.next().await,
-            Some(Ok(Response::Analyze(AnalysisResponse { id, .. }))) if id == "ancient_territory_rules"
-        );
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "ancient_territory_rules");
     }
 
     #[tokio::test]
@@ -524,10 +513,9 @@ mod rules {
         };
         engine.stdin.send(&Request::Analyze(request)).await.unwrap();
 
-        assert_matches!(
-            engine.stdout.next().await,
-            Some(Ok(Response::Analyze(AnalysisResponse { id, .. }))) if id == "aga_button_rules"
-        );
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "aga_button_rules");
     }
 
     #[tokio::test]
@@ -539,10 +527,9 @@ mod rules {
         };
         engine.stdin.send(&Request::Analyze(request)).await.unwrap();
 
-        assert_matches!(
-            engine.stdout.next().await,
-            Some(Ok(Response::Analyze(AnalysisResponse { id, .. }))) if id == "aga_rules"
-        );
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "aga_rules");
     }
 
     #[tokio::test]
@@ -554,10 +541,9 @@ mod rules {
         };
         engine.stdin.send(&Request::Analyze(request)).await.unwrap();
 
-        assert_matches!(
-            engine.stdout.next().await,
-            Some(Ok(Response::Analyze(AnalysisResponse { id, .. }))) if id == "new_zealand_rules"
-        );
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "new_zealand_rules");
     }
 
     #[tokio::test]
@@ -569,10 +555,9 @@ mod rules {
         };
         engine.stdin.send(&Request::Analyze(request)).await.unwrap();
 
-        assert_matches!(
-            engine.stdout.next().await,
-            Some(Ok(Response::Analyze(AnalysisResponse { id, .. }))) if id == "tromp_taylor_rules"
-        );
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "tromp_taylor_rules");
     }
 
     #[tokio::test]
@@ -584,10 +569,9 @@ mod rules {
         };
         engine.stdin.send(&Request::Analyze(request)).await.unwrap();
 
-        assert_matches!(
-            engine.stdout.next().await,
-            Some(Ok(Response::Analyze(AnalysisResponse { id, .. }))) if id == "ing_rules"
-        );
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "ing_rules");
     }
 
     #[tokio::test]
@@ -607,10 +591,9 @@ mod rules {
         };
         engine.stdin.send(&Request::Analyze(request)).await.unwrap();
 
-        assert_matches!(
-            engine.stdout.next().await,
-            Some(Ok(Response::Analyze(AnalysisResponse { id, .. }))) if id == "simple_ko"
-        );
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "simple_ko");
     }
 
     #[tokio::test]
@@ -630,10 +613,9 @@ mod rules {
         };
         engine.stdin.send(&Request::Analyze(request)).await.unwrap();
 
-        assert_matches!(
-            engine.stdout.next().await,
-            Some(Ok(Response::Analyze(AnalysisResponse { id, .. }))) if id == "positional_superko"
-        );
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "positional_superko");
     }
 
     #[tokio::test]
@@ -653,10 +635,9 @@ mod rules {
         };
         engine.stdin.send(&Request::Analyze(request)).await.unwrap();
 
-        assert_matches!(
-            engine.stdout.next().await,
-            Some(Ok(Response::Analyze(AnalysisResponse { id, .. }))) if id == "situational_superko"
-        );
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "situational_superko");
     }
 
     #[tokio::test]
@@ -676,10 +657,9 @@ mod rules {
         };
         engine.stdin.send(&Request::Analyze(request)).await.unwrap();
 
-        assert_matches!(
-            engine.stdout.next().await,
-            Some(Ok(Response::Analyze(AnalysisResponse { id, .. }))) if id == "area_scoring"
-        );
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "area_scoring");
     }
 
     #[tokio::test]
@@ -699,10 +679,9 @@ mod rules {
         };
         engine.stdin.send(&Request::Analyze(request)).await.unwrap();
 
-        assert_matches!(
-            engine.stdout.next().await,
-            Some(Ok(Response::Analyze(AnalysisResponse { id, .. }))) if id == "territory_scoring"
-        );
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "territory_scoring");
     }
 
     #[tokio::test]
@@ -722,10 +701,9 @@ mod rules {
         };
         engine.stdin.send(&Request::Analyze(request)).await.unwrap();
 
-        assert_matches!(
-            engine.stdout.next().await,
-            Some(Ok(Response::Analyze(AnalysisResponse { id, .. }))) if id == "no_tax"
-        );
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "no_tax");
     }
 
     #[tokio::test]
@@ -745,10 +723,9 @@ mod rules {
         };
         engine.stdin.send(&Request::Analyze(request)).await.unwrap();
 
-        assert_matches!(
-            engine.stdout.next().await,
-            Some(Ok(Response::Analyze(AnalysisResponse { id, .. }))) if id == "seki_tax"
-        );
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "seki_tax");
     }
 
     #[tokio::test]
@@ -768,10 +745,9 @@ mod rules {
         };
         engine.stdin.send(&Request::Analyze(request)).await.unwrap();
 
-        assert_matches!(
-            engine.stdout.next().await,
-            Some(Ok(Response::Analyze(AnalysisResponse { id, .. }))) if id == "group_tax"
-        );
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "group_tax");
     }
 
     #[tokio::test]
@@ -791,10 +767,9 @@ mod rules {
         };
         engine.stdin.send(&Request::Analyze(request)).await.unwrap();
 
-        assert_matches!(
-            engine.stdout.next().await,
-            Some(Ok(Response::Analyze(AnalysisResponse { id, .. }))) if id == "suicide_illegal"
-        );
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "suicide_illegal");
     }
 
     #[tokio::test]
@@ -814,10 +789,9 @@ mod rules {
         };
         engine.stdin.send(&Request::Analyze(request)).await.unwrap();
 
-        assert_matches!(
-            engine.stdout.next().await,
-            Some(Ok(Response::Analyze(AnalysisResponse { id, .. }))) if id == "suicide_legal"
-        );
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "suicide_legal");
     }
 
     #[tokio::test]
@@ -837,10 +811,9 @@ mod rules {
         };
         engine.stdin.send(&Request::Analyze(request)).await.unwrap();
 
-        assert_matches!(
-            engine.stdout.next().await,
-            Some(Ok(Response::Analyze(AnalysisResponse { id, .. }))) if id == "has_button"
-        );
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "has_button");
     }
 
     #[tokio::test]
@@ -860,10 +833,9 @@ mod rules {
         };
         engine.stdin.send(&Request::Analyze(request)).await.unwrap();
 
-        assert_matches!(
-            engine.stdout.next().await,
-            Some(Ok(Response::Analyze(AnalysisResponse { id, .. }))) if id == "white_handicap_bonus_zero"
-        );
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "white_handicap_bonus_zero");
     }
 
     #[tokio::test]
@@ -883,10 +855,9 @@ mod rules {
         };
         engine.stdin.send(&Request::Analyze(request)).await.unwrap();
 
-        assert_matches!(
-            engine.stdout.next().await,
-            Some(Ok(Response::Analyze(AnalysisResponse { id, .. }))) if id == "white_handicap_bonus_n_minus_one"
-        );
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "white_handicap_bonus_n_minus_one");
     }
 
     #[tokio::test]
@@ -906,10 +877,9 @@ mod rules {
         };
         engine.stdin.send(&Request::Analyze(request)).await.unwrap();
 
-        assert_matches!(
-            engine.stdout.next().await,
-            Some(Ok(Response::Analyze(AnalysisResponse { id, .. }))) if id == "white_handicap_bonus_n"
-        );
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "white_handicap_bonus_n");
     }
 
     #[tokio::test]
@@ -929,10 +899,9 @@ mod rules {
         };
         engine.stdin.send(&Request::Analyze(request)).await.unwrap();
 
-        assert_matches!(
-            engine.stdout.next().await,
-            Some(Ok(Response::Analyze(AnalysisResponse { id, .. }))) if id == "friendly_pass_ok"
-        );
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "friendly_pass_ok");
     }
 
     #[tokio::test]
@@ -952,9 +921,8 @@ mod rules {
         };
         engine.stdin.send(&Request::Analyze(request)).await.unwrap();
 
-        assert_matches!(
-            engine.stdout.next().await,
-            Some(Ok(Response::Analyze(AnalysisResponse { id, .. }))) if id == "friendly_pass_not_ok"
-        );
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "friendly_pass_not_ok");
     }
 }
