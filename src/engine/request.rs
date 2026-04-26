@@ -2,7 +2,7 @@ use serde::Serialize;
 use serde_json::{Value, json};
 use serde_with::skip_serializing_none;
 
-use crate::{Config, Player, Rules};
+use crate::{Bonus, Config, Player, Rules};
 
 /// A request to the analysis engine.
 #[derive(Debug, Clone, Serialize)]
@@ -115,11 +115,23 @@ pub struct AnalysisRequest {
     /// The ruleset for this game.
     pub rules: Rules,
 
+    /// The komi for this game.
+    pub komi: Option<f64>,
+
+    /// Bonus points white receives in handicap games.
+    pub white_handicap_bonus: Option<Bonus>,
+
     /// The board width.
     pub board_x_size: u8,
 
     /// The board height.
     pub board_y_size: u8,
+
+    /// The stones on the board before the first move.
+    pub initial_stones: Option<Vec<(Player, String)>>,
+
+    /// The player to move in the initial position.
+    pub initial_player: Option<Player>,
 
     /// The moves played in the game. Move locations can be in GTP format (`"A1"`, `"pass"`, etc.) or explicit
     /// coordinates (`"(0,0)"`).
@@ -129,6 +141,9 @@ pub struct AnalysisRequest {
     /// If not provided, only the final position will be analyzed.
     /// The engine will return a separate response for each position.
     pub analyze_turns: Option<Vec<usize>>,
+
+    /// The maximum number of visits to use.
+    pub max_visits: Option<u32>,
 
     /// Config overrides for this request.
     pub override_settings: Option<Config>,
@@ -146,17 +161,52 @@ impl AnalysisRequest {
         Self {
             id,
             rules,
+            komi: None,
+            white_handicap_bonus: None,
             board_x_size,
             board_y_size,
+            initial_stones: None,
+            initial_player: None,
             moves,
             analyze_turns: None,
+            max_visits: None,
             override_settings: None,
         }
+    }
+
+    /// Sets komi.
+    pub fn with_komi(mut self, komi: f64) -> Self {
+        self.komi = Some(komi);
+        self
+    }
+
+    /// Sets white's handicap bonus.
+    pub fn with_white_handicap_bonus(mut self, bonus: Bonus) -> Self {
+        self.white_handicap_bonus = Some(bonus);
+        self
+    }
+
+    /// Sets the initial position before the first move.
+    pub fn with_initial_stones(mut self, initial_stones: Vec<(Player, String)>) -> Self {
+        self.initial_stones = Some(initial_stones);
+        self
+    }
+
+    /// Sets the player to move in the initial position.
+    pub fn with_initial_player(mut self, initial_player: Player) -> Self {
+        self.initial_player = Some(initial_player);
+        self
     }
 
     /// Analyzes the specified positions. The position before the first move is turn 0.
     pub fn with_analyze_turns(mut self, analyze_turns: Vec<usize>) -> Self {
         self.analyze_turns = Some(analyze_turns);
+        self
+    }
+
+    /// Sets the maximum number of visits to use.
+    pub fn with_max_visits(mut self, max_visits: u32) -> Self {
+        self.max_visits = Some(max_visits);
         self
     }
 

@@ -245,14 +245,14 @@ pub struct Model {
     pub internal_name: String,
 
     /// The maximum batch size.
-    pub max_batch_size: usize,
+    pub max_batch_size: u32,
 
     /// Whether it uses a humanSL profile.
     #[serde(rename = "usesHumanSLProfile")]
     pub uses_humansl_profile: bool,
 
     /// The model version.
-    pub version: usize,
+    pub version: u32,
 
     /// Whether FP16 is used for this model. If this is [`Auto`][Enabled::Auto],
     /// it will be enabled if the backend deems it to be beneficial.
@@ -286,6 +286,9 @@ pub struct AnalysisResponse {
 
     /// The list of moves the engine considered.
     pub move_infos: Vec<MoveInfo>,
+
+    /// Information about the root position.
+    pub root_info: RootInfo,
 }
 
 /// The result of analyzing a candidate move.
@@ -298,11 +301,22 @@ pub struct MoveInfo {
     pub mv: String,
 
     /// The number of visits invested in this move.
-    pub visits: usize,
+    pub visits: u32,
 
     /// The winrate, in the range [0, 1].
     pub winrate: f64,
 
     /// The predicted number of points that the current side is leading by.
     pub score_lead: f64,
+}
+
+/// The result of analyzing the root position.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RootInfo {
+    /// The winrate, in the range [0, 1].
+    pub winrate: f64,
+
+    /// The number of visits received.
+    pub visits: u32,
 }

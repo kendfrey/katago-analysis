@@ -28,6 +28,15 @@ fn test_request<T: Into<String>>(id: T) -> AnalysisRequest {
     )
 }
 
+fn test_lopsided_request<T: Into<String>>(id: T) -> AnalysisRequest {
+    AnalysisRequest::new(id.into(), Rules::chinese(), 19, 19, vec![]).with_initial_stones(vec![
+        (Player::Black, "Q16".to_string()),
+        (Player::Black, "D4".to_string()),
+        (Player::Black, "Q4".to_string()),
+        (Player::Black, "D16".to_string()),
+    ])
+}
+
 mod requests {
     use super::*;
 
@@ -41,6 +50,59 @@ mod requests {
             engine.stdout.next().await,
             Some(Ok(Response::Analyze(AnalysisResponse { id, turn_number, .. })))
                 if id == "analyze" && turn_number == 2
+        );
+    }
+
+    #[tokio::test]
+    async fn komi() {
+        let mut engine = ENGINE.lock().await;
+        let request = test_request("komi").with_komi(0.0);
+        engine.stdin.send(&Request::Analyze(request)).await.unwrap();
+
+        assert_matches!(
+            engine.stdout.next().await,
+            Some(Ok(Response::Analyze(AnalysisResponse { id, turn_number, root_info, .. })))
+                if id == "komi" && turn_number == 2 && root_info.winrate > 0.9
+        );
+    }
+
+    #[tokio::test]
+    async fn white_handicap_bonus() {
+        let mut engine = ENGINE.lock().await;
+        let request = test_lopsided_request("white_handicap_bonus")
+            .with_white_handicap_bonus(Bonus::NMinusOne);
+        engine.stdin.send(&Request::Analyze(request)).await.unwrap();
+
+        assert_matches!(
+            engine.stdout.next().await,
+            Some(Ok(Response::Analyze(AnalysisResponse { id, turn_number, .. })))
+                if id == "white_handicap_bonus" && turn_number == 0
+        );
+    }
+
+    #[tokio::test]
+    async fn initial_stones() {
+        let mut engine = ENGINE.lock().await;
+        let request = test_lopsided_request("initial_stones");
+        engine.stdin.send(&Request::Analyze(request)).await.unwrap();
+
+        assert_matches!(
+            engine.stdout.next().await,
+            Some(Ok(Response::Analyze(AnalysisResponse { id, turn_number, root_info, .. })))
+                if id == "initial_stones" && turn_number == 0 && root_info.winrate < 0.1
+        );
+    }
+
+    #[tokio::test]
+    async fn initial_player() {
+        let mut engine = ENGINE.lock().await;
+        let request = test_lopsided_request("initial_player").with_initial_player(Player::Black);
+        engine.stdin.send(&Request::Analyze(request)).await.unwrap();
+
+        assert_matches!(
+            engine.stdout.next().await,
+            Some(Ok(Response::Analyze(AnalysisResponse { id, turn_number, root_info, .. })))
+                if id == "initial_player" && turn_number == 0 && root_info.winrate > 0.9
         );
     }
 
@@ -64,6 +126,19 @@ mod requests {
                 if id == "analyze_turns" && *turn_number == 2
             )
         ));
+    }
+
+    #[tokio::test]
+    async fn max_visits() {
+        let mut engine = ENGINE.lock().await;
+        let request = test_request("max_visits").with_max_visits(10);
+        engine.stdin.send(&Request::Analyze(request)).await.unwrap();
+
+        assert_matches!(
+            engine.stdout.next().await,
+            Some(Ok(Response::Analyze(AnalysisResponse { id, turn_number, root_info, .. })))
+                if id == "max_visits" && turn_number == 2 && root_info.visits == 10
+        );
     }
 
     #[tokio::test]
