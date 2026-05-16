@@ -3,9 +3,16 @@
 //! See [KataGo Parallel Analysis Engine](https://github.com/lightvector/KataGo/blob/master/docs/Analysis_Engine.md)
 //! for official documentation of the analysis engine.
 //!
+//! You probably want to use the higher-level API in the [crate root](crate) instead of this module. This module is intended
+//! for use cases that require lower-level control over the messages sent to and received from the engine.
+//!
+//! Note: The asynchronous methods in this library must be called from within a Tokio runtime.
+//!
+//! # Example
+//!
 //! ```
 //! use katago_analysis::{
-//!     Error, Player, Rules,
+//!     Player, Result, Rules,
 //!     engine::{AnalysisRequest, AnalysisResponse, Engine, LaunchOptions, Request, Response},
 //! };
 //! use tokio_stream::StreamExt;
@@ -14,7 +21,7 @@
 //!     katago_path: String,
 //!     analysis_config_path: String,
 //!     model_path: String,
-//! ) -> Result<(), Error> {
+//! ) -> Result<()> {
 //!     let options = LaunchOptions::new(katago_path, analysis_config_path, model_path);
 //!     let mut engine = Engine::launch(&options)?;
 //!
@@ -52,7 +59,7 @@ use tokio::{
 };
 use tokio_stream::{StreamExt, wrappers::LinesStream};
 
-use crate::{Config, Error};
+use crate::{Config, Error, Result};
 
 mod request;
 pub use request::*;
@@ -145,7 +152,7 @@ pub struct Engine {
 
 impl Engine {
     /// Launches the KataGo analysis engine with the given options.
-    pub fn launch(config: &LaunchOptions) -> Result<Engine, Error> {
+    pub fn launch(config: &LaunchOptions) -> Result<Engine> {
         let mut cmd = Command::new(&config.katago_path);
         cmd.stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -176,17 +183,14 @@ impl Engine {
             cmd.arg("-quit-without-waiting");
         }
 
-        let mut child_process = cmd.spawn().map_err(Error::Io)?;
+        let mut child_process = cmd.spawn()?;
         let stdin = child_process.stdin.take().ok_or(Error::StdinUnavailable)?;
         let stdout = child_process
             .stdout
             .take()
             .ok_or(Error::StdoutUnavailable)?;
-        let stdout_stream: EngineStdout =
-            LinesStream::new(BufReader::new(stdout).lines()).map(|line| {
-                serde_json::from_str::<Response>(&line.map_err(Error::Io)?)
-                    .map_err(Error::Serialization)
-            });
+        let stdout_stream: EngineStdout = LinesStream::new(BufReader::new(stdout).lines())
+            .map(|line| Ok(serde_json::from_str::<Response>(&line?)?));
 
         Ok(Engine {
             stdin: EngineStdin(stdin),
@@ -205,18 +209,15 @@ pub struct EngineStdin(ChildStdin);
 
 impl EngineStdin {
     /// Sends a [`Request`] to the analysis engine.
-    pub async fn send(&mut self, request: &Request) -> Result<(), Error> {
-        let json = serde_json::to_string(request).map_err(Error::Serialization)?;
+    pub async fn send(&mut self, request: &Request) -> Result<()> {
+        let json = serde_json::to_string(request)?;
         self.send_raw(&json).await
     }
 
     /// Sends a raw string to the analysis engine.
-    pub async fn send_raw(&mut self, request: &str) -> Result<(), Error> {
-        self.0
-            .write_all(request.as_bytes())
-            .await
-            .map_err(Error::Io)?;
-        self.0.write_all(b"\n").await.map_err(Error::Io)?;
+    pub async fn send_raw(&mut self, request: &str) -> Result<()> {
+        self.0.write_all(request.as_bytes()).await?;
+        self.0.write_all(b"\n").await?;
         Ok(())
     }
 }
@@ -224,5 +225,5 @@ impl EngineStdin {
 /// A [`Stream`][futures_core::stream::Stream] of [`Response`]s from the analysis engine.
 pub type EngineStdout = tokio_stream::adapters::Map<
     LinesStream<BufReader<ChildStdout>>,
-    fn(Result<String, io::Error>) -> Result<Response, Error>,
+    fn(std::result::Result<String, io::Error>) -> Result<Response>,
 >;

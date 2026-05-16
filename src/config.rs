@@ -22,7 +22,7 @@ impl Config {
     }
 
     /// Adds a configuration setting.
-    pub fn insert<K: Into<String>, V: Into<Value>>(&mut self, key: K, value: V) -> &mut Self {
+    pub fn insert(&mut self, key: impl Into<String>, value: impl Into<Value>) -> &mut Self {
         self.0.insert(key.into(), value.into());
         self
     }
@@ -34,7 +34,7 @@ impl Config {
     }
 
     /// Adds a configuration setting and returns the new configuration.
-    pub fn with<K: Into<String>, V: Into<Value>>(mut self, key: K, value: V) -> Self {
+    pub fn with(mut self, key: impl Into<String>, value: impl Into<Value>) -> Self {
         self.insert(key, value);
         self
     }

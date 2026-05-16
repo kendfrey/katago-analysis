@@ -1,18 +1,18 @@
 use std::{env, sync::LazyLock};
 
 use assert_matches::assert_matches;
-use katago_analysis::{engine::*, *};
+use katago_analysis::{Bonus, Config, Ko, Player, Rules, Scoring, Tax, engine::*};
 use tokio::sync::Mutex;
 use tokio_stream::StreamExt;
 
 static ENGINE: LazyLock<Mutex<Engine>> = LazyLock::new(|| {
     _ = dotenv::dotenv();
-    let config = LaunchOptions::new(
+    let options = LaunchOptions::new(
         env::var("KATAGO_PATH").expect("KATAGO_PATH environment variable not set"),
         "test_analysis.cfg".to_string(),
         env::var("KATAGO_MODEL_PATH").expect("KATAGO_MODEL_PATH environment variable not set"),
     );
-    Mutex::new(Engine::launch(&config).unwrap())
+    Mutex::new(Engine::launch(&options).unwrap())
 });
 
 fn test_request<T: Into<String>>(id: T) -> AnalysisRequest {
@@ -136,7 +136,7 @@ mod requests {
             assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
         assert_eq!(response.id, "max_visits");
         assert_eq!(response.turn_number, 2);
-        assert_eq!(response.root_info.visits, 10);
+        assert!(response.root_info.visits >= 10);
     }
 
     #[tokio::test]

@@ -54,7 +54,9 @@ pub enum Request {
 impl From<Request> for Value {
     fn from(request: Request) -> Self {
         match request {
-            Request::Analyze(request) => serde_json::to_value(request).unwrap(),
+            Request::Analyze(request) => {
+                serde_json::to_value(request).expect("request should be serializable")
+            }
             Request::QueryVersion { id } => json!({
                 "id": id,
                 "action": "query_version",
@@ -77,7 +79,7 @@ impl From<Request> for Value {
                 if let Some(turn_numbers) = turn_numbers {
                     value
                         .as_object_mut()
-                        .unwrap()
+                        .expect("value should be an object")
                         .insert("turnNumbers".to_string(), json!(turn_numbers));
                 }
                 value
@@ -91,7 +93,7 @@ impl From<Request> for Value {
                 if let Some(turn_numbers) = turn_numbers {
                     value
                         .as_object_mut()
-                        .unwrap()
+                        .expect("value should be an object")
                         .insert("turnNumbers".to_string(), json!(turn_numbers));
                 }
                 value
@@ -104,7 +106,7 @@ impl From<Request> for Value {
     }
 }
 
-/// A request to analyze one or more positions.
+/// A game record to be analyzed, along with analysis settings.
 #[skip_serializing_none]
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]

@@ -1,7 +1,7 @@
 use std::env;
 
 use assert_matches::assert_matches;
-use katago_analysis::{engine::*, *};
+use katago_analysis::{Config, Rules, engine::*};
 use tokio::sync::Mutex;
 use tokio_stream::StreamExt;
 

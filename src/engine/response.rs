@@ -1,6 +1,8 @@
 use serde::Deserialize;
 use serde_json::{Map, Value};
 
+use crate::Model;
+
 /// A response from the analysis engine.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(try_from = "Value")]
@@ -232,46 +234,6 @@ impl TryFrom<Value> for Response {
             .or_else(|| try_parse_analysis(value))
             .ok_or("unrecognized response format".to_string())
     }
-}
-
-/// Information about a neural network model.
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Model {
-    /// The model name.
-    pub name: String,
-
-    /// The internal name.
-    pub internal_name: String,
-
-    /// The maximum batch size.
-    pub max_batch_size: u32,
-
-    /// Whether it uses a humanSL profile.
-    #[serde(rename = "usesHumanSLProfile")]
-    pub uses_humansl_profile: bool,
-
-    /// The model version.
-    pub version: u32,
-
-    /// Whether FP16 is used for this model. If this is [`Auto`][Enabled::Auto],
-    /// it will be enabled if the backend deems it to be beneficial.
-    #[serde(rename = "usingFP16")]
-    pub using_fp16: Enabled,
-}
-
-/// The enabled state of a feature.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Enabled {
-    /// The feature is disabled.
-    False,
-
-    /// The feature is enabled.
-    True,
-
-    /// The feature will be automatically enabled or disabled based on what the engine thinks is best.
-    Auto,
 }
 
 /// The result of analyzing a position.
