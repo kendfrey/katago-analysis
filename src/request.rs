@@ -30,6 +30,12 @@ pub struct AnalysisRequest {
     /// The maximum number of visits to use.
     pub max_visits: Option<u32>,
 
+    /// Root policy temperature.
+    pub root_policy_temperature: Option<f64>,
+
+    /// Root FPU reduction max.
+    pub root_fpu_reduction_max: Option<f64>,
+
     /// Config overrides for this request.
     pub override_settings: Option<Config>,
 
@@ -55,6 +61,8 @@ impl AnalysisRequest {
             initial_player: None,
             moves,
             max_visits: None,
+            root_policy_temperature: None,
+            root_fpu_reduction_max: None,
             override_settings: None,
             report_during_search_every: None,
         }
@@ -88,6 +96,8 @@ impl AnalysisRequest {
                 .collect(),
             analyze_turns: Some(analyze_turns),
             max_visits: self.max_visits,
+            root_policy_temperature: self.root_policy_temperature,
+            root_fpu_reduction_max: self.root_fpu_reduction_max,
             override_settings: self.override_settings,
             report_during_search_every: self.report_during_search_every,
         }
@@ -120,6 +130,18 @@ impl AnalysisRequest {
     /// Sets the maximum number of visits to use.
     pub fn with_max_visits(mut self, max_visits: u32) -> Self {
         self.max_visits = Some(max_visits);
+        self
+    }
+
+    /// Sets the root policy temperature.
+    pub fn with_root_policy_temperature(mut self, root_policy_temperature: f64) -> Self {
+        self.root_policy_temperature = Some(root_policy_temperature);
+        self
+    }
+
+    /// Sets the root FPU reduction max.
+    pub fn with_root_fpu_reduction_max(mut self, root_fpu_reduction_max: f64) -> Self {
+        self.root_fpu_reduction_max = Some(root_fpu_reduction_max);
         self
     }
 

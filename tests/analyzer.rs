@@ -55,6 +55,8 @@ async fn main() {
         test!(initial_stones, analyzer),
         test!(initial_player, analyzer),
         test!(max_visits, analyzer),
+        test!(root_policy_temperature, analyzer),
+        test!(root_fpu_reduction_max, analyzer),
         test!(override_settings, analyzer),
         test!(report_during_search_every, analyzer),
         test!(pass, analyzer),
@@ -178,6 +180,20 @@ async fn max_visits(analyzer: &mut Analyzer) {
 
     let result = assert_matches!(analyzer.analyze(request).await, Ok(Some(r)) => r);
     assert_eq!(result.root_info.visits, 10);
+}
+
+async fn root_policy_temperature(analyzer: &mut Analyzer) {
+    let request = test_request().with_root_policy_temperature(10.0);
+
+    let result = assert_matches!(analyzer.analyze(request).await, Ok(Some(r)) => r);
+    assert_eq!(result.turn_number, 2);
+}
+
+async fn root_fpu_reduction_max(analyzer: &mut Analyzer) {
+    let request = test_request().with_root_fpu_reduction_max(0.0);
+
+    let result = assert_matches!(analyzer.analyze(request).await, Ok(Some(r)) => r);
+    assert_eq!(result.turn_number, 2);
 }
 
 async fn override_settings(analyzer: &mut Analyzer) {

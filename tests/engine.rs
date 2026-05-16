@@ -140,6 +140,30 @@ mod requests {
     }
 
     #[tokio::test]
+    async fn root_policy_temperature() {
+        let mut engine = ENGINE.lock().await;
+        let request = test_request("root_policy_temperature").with_root_policy_temperature(10.0);
+        engine.stdin.send(&Request::Analyze(request)).await.unwrap();
+
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "root_policy_temperature");
+        assert_eq!(response.turn_number, 2);
+    }
+
+    #[tokio::test]
+    async fn root_fpu_reduction_max() {
+        let mut engine = ENGINE.lock().await;
+        let request = test_request("root_fpu_reduction_max").with_root_fpu_reduction_max(0.0);
+        engine.stdin.send(&Request::Analyze(request)).await.unwrap();
+
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "root_fpu_reduction_max");
+        assert_eq!(response.turn_number, 2);
+    }
+
+    #[tokio::test]
     async fn override_settings() {
         let mut engine = ENGINE.lock().await;
         let request = test_request("override_settings")
