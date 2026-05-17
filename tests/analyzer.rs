@@ -57,6 +57,8 @@ async fn main() {
         test!(max_visits, analyzer),
         test!(root_policy_temperature, analyzer),
         test!(root_fpu_reduction_max, analyzer),
+        test!(pv, analyzer),
+        test!(analysis_pv_len, analyzer),
         test!(override_settings, analyzer),
         test!(report_during_search_every, analyzer),
         test!(pass, analyzer),
@@ -194,6 +196,31 @@ async fn root_fpu_reduction_max(analyzer: &mut Analyzer) {
 
     let result = assert_matches!(analyzer.analyze(request).await, Ok(Some(r)) => r);
     assert_eq!(result.turn_number, 2);
+}
+
+async fn pv(analyzer: &mut Analyzer) {
+    let request = test_request();
+
+    let result = assert_matches!(analyzer.analyze(request).await, Ok(Some(r)) => r);
+    assert!(!result.move_infos.is_empty());
+    let mv = &result.move_infos[0];
+    assert!(!mv.pv.is_empty());
+    assert!(mv.pv_visits.is_none());
+    assert!(mv.pv_edge_visits.is_none());
+}
+
+async fn analysis_pv_len(analyzer: &mut Analyzer) {
+    let request = test_request()
+        .with_max_visits(20)
+        .with_analysis_pv_len(1)
+        .with_pv_visits();
+
+    let result = assert_matches!(analyzer.analyze(request).await, Ok(Some(r)) => r);
+    assert!(!result.move_infos.is_empty());
+    let mv = &result.move_infos[0];
+    assert_eq!(mv.pv.len(), 2);
+    assert_eq!(mv.pv_visits.as_ref().unwrap().len(), 2);
+    assert_eq!(mv.pv_edge_visits.as_ref().unwrap().len(), 2);
 }
 
 async fn override_settings(analyzer: &mut Analyzer) {

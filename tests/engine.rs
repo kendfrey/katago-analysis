@@ -164,6 +164,41 @@ mod requests {
     }
 
     #[tokio::test]
+    async fn pv() {
+        let mut engine = ENGINE.lock().await;
+        let request = test_request("pv");
+        engine.stdin.send(&Request::Analyze(request)).await.unwrap();
+
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "pv");
+        assert!(!response.move_infos.is_empty());
+        let mv = &response.move_infos[0];
+        assert!(!mv.pv.is_empty());
+        assert!(mv.pv_visits.is_none());
+        assert!(mv.pv_edge_visits.is_none());
+    }
+
+    #[tokio::test]
+    async fn analysis_pv_len() {
+        let mut engine = ENGINE.lock().await;
+        let request = test_request("analysis_pv_len")
+            .with_max_visits(20)
+            .with_analysis_pv_len(1)
+            .with_pv_visits();
+        engine.stdin.send(&Request::Analyze(request)).await.unwrap();
+
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "analysis_pv_len");
+        assert!(!response.move_infos.is_empty());
+        let mv = &response.move_infos[0];
+        assert_eq!(mv.pv.len(), 2);
+        assert_eq!(mv.pv_visits.as_ref().unwrap().len(), 2);
+        assert_eq!(mv.pv_edge_visits.as_ref().unwrap().len(), 2);
+    }
+
+    #[tokio::test]
     async fn override_settings() {
         let mut engine = ENGINE.lock().await;
         let request = test_request("override_settings")

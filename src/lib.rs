@@ -421,6 +421,15 @@ pub struct MoveInfo {
 
     /// The predicted number of points that the current side is leading by.
     pub score_lead: f64,
+
+    /// The principal variation for this move.
+    pub pv: Vec<Move>,
+
+    /// The number of visits invested in each position in the principal variation.
+    pub pv_visits: Option<Vec<u32>>,
+
+    /// The number of visits invested in each move in the principal variation.
+    pub pv_edge_visits: Option<Vec<u32>>,
 }
 
 impl MoveInfo {
@@ -433,6 +442,13 @@ impl MoveInfo {
             visits: info.visits,
             winrate: info.winrate,
             score_lead: info.score_lead,
+            pv: info
+                .pv
+                .into_iter()
+                .map(|mv| Move::from_gtp(&mv, height).expect("invalid move"))
+                .collect(),
+            pv_visits: info.pv_visits,
+            pv_edge_visits: info.pv_edge_visits,
         }
     }
 }

@@ -273,6 +273,15 @@ pub struct MoveInfo {
 
     /// The predicted number of points that the current side is leading by.
     pub score_lead: f64,
+
+    /// The principal variation for this move.
+    pub pv: Vec<String>,
+
+    /// The number of visits invested in each position in the principal variation.
+    pub pv_visits: Option<Vec<u32>>,
+
+    /// The number of visits invested in each move in the principal variation.
+    pub pv_edge_visits: Option<Vec<u32>>,
 }
 
 /// The result of analyzing the root position.

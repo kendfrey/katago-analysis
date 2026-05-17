@@ -36,6 +36,12 @@ pub struct AnalysisRequest {
     /// Root FPU reduction max.
     pub root_fpu_reduction_max: Option<f64>,
 
+    /// The maximum length of the principal variation to return, not including the first move.
+    pub analysis_pv_len: Option<usize>,
+
+    /// Whether to return the number of visits for each position in the principal variation.
+    pub include_pv_visits: bool,
+
     /// Config overrides for this request.
     pub override_settings: Option<Config>,
 
@@ -63,6 +69,8 @@ impl AnalysisRequest {
             max_visits: None,
             root_policy_temperature: None,
             root_fpu_reduction_max: None,
+            analysis_pv_len: None,
+            include_pv_visits: false,
             override_settings: None,
             report_during_search_every: None,
         }
@@ -98,6 +106,8 @@ impl AnalysisRequest {
             max_visits: self.max_visits,
             root_policy_temperature: self.root_policy_temperature,
             root_fpu_reduction_max: self.root_fpu_reduction_max,
+            analysis_pv_len: self.analysis_pv_len,
+            include_pv_visits: self.include_pv_visits,
             override_settings: self.override_settings,
             report_during_search_every: self.report_during_search_every,
         }
@@ -142,6 +152,18 @@ impl AnalysisRequest {
     /// Sets the root FPU reduction max.
     pub fn with_root_fpu_reduction_max(mut self, root_fpu_reduction_max: f64) -> Self {
         self.root_fpu_reduction_max = Some(root_fpu_reduction_max);
+        self
+    }
+
+    /// Sets the maximum length of the principal variation to return, not including the first move.
+    pub fn with_analysis_pv_len(mut self, analysis_pv_len: usize) -> Self {
+        self.analysis_pv_len = Some(analysis_pv_len);
+        self
+    }
+
+    /// Includes the number of visits for each position in the principal variation.
+    pub fn with_pv_visits(mut self) -> Self {
+        self.include_pv_visits = true;
         self
     }
 
