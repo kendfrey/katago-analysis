@@ -54,11 +54,47 @@ pub struct MoveInfo {
     /// The number of visits invested in this move.
     pub visits: u32,
 
+    /// The number of visits the root "wants" to invest in this move.
+    pub edge_visits: u32,
+
     /// The winrate, in the range [0, 1].
     pub winrate: f64,
 
     /// The predicted number of points that the current side is leading by.
     pub score_lead: f64,
+
+    /// The predicted standard deviation of the score lead.
+    pub score_stdev: f64,
+
+    /// The predicted score at the end of the game after selfplay.
+    pub score_selfplay: f64,
+
+    /// The policy prior of this move.
+    pub prior: f64,
+
+    /// The utility of this move.
+    pub utility: f64,
+
+    /// The LCB of this move's winrate.
+    pub lcb: f64,
+
+    /// The LCB of this move's utility.
+    pub utility_lcb: f64,
+
+    /// The total weight of this move's visits.
+    pub weight: f64,
+
+    /// The total weight of the visits the root "wants" to invest in this move.
+    pub edge_weight: f64,
+
+    /// The relative ranking of this move, where 0 is best.
+    pub order: usize,
+
+    /// The value used to determine the move ranking.
+    pub play_selection_value: f64,
+
+    /// If present, indicates the move that was actually searched to get the evaluation of this move.
+    pub is_symmetry_of: Option<Coord>,
 
     /// The principal variation for this move.
     pub pv: Vec<Move>,
@@ -84,8 +120,22 @@ impl MoveInfo {
         MoveInfo {
             mv: Move::from_gtp(&info.mv, height).expect("invalid move"),
             visits: info.visits,
+            edge_visits: info.edge_visits,
             winrate: info.winrate,
             score_lead: info.score_lead,
+            score_stdev: info.score_stdev,
+            score_selfplay: info.score_selfplay,
+            prior: info.prior,
+            utility: info.utility,
+            lcb: info.lcb,
+            utility_lcb: info.utility_lcb,
+            weight: info.weight,
+            edge_weight: info.edge_weight,
+            order: info.order,
+            play_selection_value: info.play_selection_value,
+            is_symmetry_of: info
+                .is_symmetry_of
+                .map(|c| Coord::from_gtp(&c, height).expect("invalid move")),
             pv: info
                 .pv
                 .into_iter()

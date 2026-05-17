@@ -46,10 +46,11 @@ async fn main() {
     )));
 
     let tests = vec![
-        test!(analyze_positions, analyzer),
-        test!(analyze_game, analyzer),
-        test!(analyze_position, analyzer),
         test!(analyze, analyzer),
+        test!(analyze_position, analyzer),
+        test!(analyze_game, analyzer),
+        test!(analyze_positions, analyzer),
+        test!(move_infos, analyzer),
         test!(komi, analyzer),
         test!(white_handicap_bonus, analyzer),
         test!(initial_stones, analyzer),
@@ -153,6 +154,45 @@ async fn analyze_positions(analyzer: &mut Analyzer) {
     assert!(results.is_empty());
     assert_eq!(pos0.turn_number, 0);
     assert_eq!(pos1.turn_number, 1);
+}
+
+async fn move_infos(analyzer: &mut Analyzer) {
+    let request = test_request();
+
+    let result = assert_matches!(analyzer.analyze(request).await, Ok(Some(r)) => r);
+    assert!(!result.move_infos.is_empty());
+    let mv = &result.move_infos[0];
+    assert!(mv.visits > 0);
+    assert!(mv.edge_visits > 0);
+    assert!(mv.winrate < 0.9);
+    assert!(mv.score_lead.abs() < 5.0);
+    assert!(mv.score_stdev > 5.0);
+    assert!(mv.score_selfplay.abs() < 5.0);
+    assert!(mv.prior > 0.1);
+    assert!(mv.utility.abs() < 1.0);
+    assert!(mv.lcb < mv.winrate);
+    assert!(mv.utility_lcb < mv.utility);
+    assert!(mv.weight > 0.0);
+    assert!(mv.edge_weight > 0.0);
+    assert!(mv.order < result.move_infos.len());
+    assert!(mv.play_selection_value > 1.0);
+    let symm_move = assert_matches!(
+        result
+            .move_infos
+            .iter()
+            .find(|m| m.is_symmetry_of.is_some()),
+        Some(m) => m
+    );
+    let orig_move = Move::Move(symm_move.is_symmetry_of.unwrap());
+    assert_ne!(symm_move.mv, orig_move);
+    let orig_move = assert_matches!(
+        result
+            .move_infos
+            .iter()
+            .find(|m| m.mv == orig_move),
+        Some(m) => m
+    );
+    assert_eq!(symm_move.winrate, orig_move.winrate);
 }
 
 async fn komi(analyzer: &mut Analyzer) {

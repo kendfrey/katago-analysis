@@ -53,6 +53,50 @@ mod requests {
     }
 
     #[tokio::test]
+    async fn move_infos() {
+        let mut engine = ENGINE.lock().await;
+        let request = test_request("move_infos");
+        engine.stdin.send(&Request::Analyze(request)).await.unwrap();
+
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "move_infos");
+        assert!(!response.move_infos.is_empty());
+        let mv = &response.move_infos[0];
+        assert!(mv.visits > 0);
+        assert!(mv.edge_visits > 0);
+        assert!(mv.winrate < 0.9);
+        assert!(mv.score_lead.abs() < 5.0);
+        assert!(mv.score_stdev > 5.0);
+        assert!(mv.score_selfplay.abs() < 5.0);
+        assert!(mv.prior > 0.1);
+        assert!(mv.utility.abs() < 1.0);
+        assert!(mv.lcb < mv.winrate);
+        assert!(mv.utility_lcb < mv.utility);
+        assert!(mv.weight > 0.0);
+        assert!(mv.edge_weight > 0.0);
+        assert!(mv.order < response.move_infos.len());
+        assert!(mv.play_selection_value > 1.0);
+        let symm_move = assert_matches!(
+            response
+                .move_infos
+                .iter()
+                .find(|m| m.is_symmetry_of.is_some()),
+            Some(m) => m
+        );
+        let orig_move = symm_move.is_symmetry_of.as_ref().unwrap();
+        assert_ne!(symm_move.mv, *orig_move);
+        let orig_move = assert_matches!(
+            response
+                .move_infos
+                .iter()
+                .find(|m| m.mv == *orig_move),
+            Some(m) => m
+        );
+        assert_eq!(symm_move.winrate, orig_move.winrate);
+    }
+
+    #[tokio::test]
     async fn komi() {
         let mut engine = ENGINE.lock().await;
         let request = test_request("komi").with_komi(0.0);
