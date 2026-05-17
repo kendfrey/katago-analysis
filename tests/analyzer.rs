@@ -59,6 +59,11 @@ async fn main() {
         test!(root_fpu_reduction_max, analyzer),
         test!(pv, analyzer),
         test!(analysis_pv_len, analyzer),
+        test!(ownership, analyzer),
+        test!(include_ownership, analyzer),
+        test!(include_ownership_stdev, analyzer),
+        test!(include_moves_ownership, analyzer),
+        test!(include_moves_ownership_stdev, analyzer),
         test!(override_settings, analyzer),
         test!(report_during_search_every, analyzer),
         test!(pass, analyzer),
@@ -221,6 +226,70 @@ async fn analysis_pv_len(analyzer: &mut Analyzer) {
     assert_eq!(mv.pv.len(), 2);
     assert_eq!(mv.pv_visits.as_ref().unwrap().len(), 2);
     assert_eq!(mv.pv_edge_visits.as_ref().unwrap().len(), 2);
+}
+
+async fn ownership(analyzer: &mut Analyzer) {
+    let request = test_request();
+
+    let result = assert_matches!(analyzer.analyze(request).await, Ok(Some(r)) => r);
+    assert!(result.ownership.is_none());
+    assert!(result.ownership_stdev.is_none());
+    assert!(!result.move_infos.is_empty());
+    let mv = &result.move_infos[0];
+    assert!(mv.ownership.is_none());
+    assert!(mv.ownership_stdev.is_none());
+}
+
+async fn include_ownership(analyzer: &mut Analyzer) {
+    let request = test_request().with_ownership();
+
+    let result = assert_matches!(analyzer.analyze(request).await, Ok(Some(r)) => r);
+    let ownership = assert_matches!(result.ownership.as_ref(), Some(m) => m);
+    assert!(*ownership.get(15, 3) > 0.5);
+    assert!(result.ownership_stdev.is_none());
+    assert!(!result.move_infos.is_empty());
+    let mv = &result.move_infos[0];
+    assert!(mv.ownership.is_none());
+    assert!(mv.ownership_stdev.is_none());
+}
+
+async fn include_ownership_stdev(analyzer: &mut Analyzer) {
+    let request = test_request().with_ownership_stdev();
+
+    let result = assert_matches!(analyzer.analyze(request).await, Ok(Some(r)) => r);
+    assert!(result.ownership.is_none());
+    let ownership_stdev = assert_matches!(result.ownership_stdev.as_ref(), Some(m) => m);
+    assert!(*ownership_stdev.get(15, 3) < 0.1);
+    assert!(!result.move_infos.is_empty());
+    let mv = &result.move_infos[0];
+    assert!(mv.ownership.is_none());
+    assert!(mv.ownership_stdev.is_none());
+}
+
+async fn include_moves_ownership(analyzer: &mut Analyzer) {
+    let request = test_request().with_moves_ownership();
+
+    let result = assert_matches!(analyzer.analyze(request).await, Ok(Some(r)) => r);
+    assert!(result.ownership.is_none());
+    assert!(result.ownership_stdev.is_none());
+    assert!(!result.move_infos.is_empty());
+    let mv = &result.move_infos[0];
+    let ownership = assert_matches!(mv.ownership.as_ref(), Some(m) => m);
+    assert!(*ownership.get(9, 9) < 0.5);
+    assert!(mv.ownership_stdev.is_none());
+}
+
+async fn include_moves_ownership_stdev(analyzer: &mut Analyzer) {
+    let request = test_request().with_moves_ownership_stdev();
+
+    let result = assert_matches!(analyzer.analyze(request).await, Ok(Some(r)) => r);
+    assert!(result.ownership.is_none());
+    assert!(result.ownership_stdev.is_none());
+    assert!(!result.move_infos.is_empty());
+    let mv = &result.move_infos[0];
+    assert!(mv.ownership.is_none());
+    let ownership_stdev = assert_matches!(mv.ownership_stdev.as_ref(), Some(m) => m);
+    assert!(*ownership_stdev.get(9, 9) < 0.1);
 }
 
 async fn override_settings(analyzer: &mut Analyzer) {

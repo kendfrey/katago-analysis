@@ -199,6 +199,95 @@ mod requests {
     }
 
     #[tokio::test]
+    async fn ownership() {
+        let mut engine = ENGINE.lock().await;
+        let request = test_request("ownership");
+        engine.stdin.send(&Request::Analyze(request)).await.unwrap();
+
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "ownership");
+        assert!(response.ownership.is_none());
+        assert!(response.ownership_stdev.is_none());
+        assert!(!response.move_infos.is_empty());
+        let mv = &response.move_infos[0];
+        assert!(mv.ownership.is_none());
+        assert!(mv.ownership_stdev.is_none());
+    }
+
+    #[tokio::test]
+    async fn include_ownership() {
+        let mut engine = ENGINE.lock().await;
+        let request = test_request("include_ownership").with_ownership();
+        engine.stdin.send(&Request::Analyze(request)).await.unwrap();
+
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "include_ownership");
+        let ownership = assert_matches!(response.ownership, Some(o) => o);
+        assert!(ownership[3 * 19 + 15] > 0.5);
+        assert!(response.ownership_stdev.is_none());
+        assert!(!response.move_infos.is_empty());
+        let mv = &response.move_infos[0];
+        assert!(mv.ownership.is_none());
+        assert!(mv.ownership_stdev.is_none());
+    }
+
+    #[tokio::test]
+    async fn include_ownership_stdev() {
+        let mut engine = ENGINE.lock().await;
+        let request = test_request("include_ownership_stdev").with_ownership_stdev();
+        engine.stdin.send(&Request::Analyze(request)).await.unwrap();
+
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "include_ownership_stdev");
+        assert!(response.ownership.is_none());
+        let ownership_stdev = assert_matches!(response.ownership_stdev, Some(s) => s);
+        assert!(ownership_stdev[3 * 19 + 15] < 0.1);
+        assert!(!response.move_infos.is_empty());
+        let mv = &response.move_infos[0];
+        assert!(mv.ownership.is_none());
+        assert!(mv.ownership_stdev.is_none());
+    }
+
+    #[tokio::test]
+    async fn include_moves_ownership() {
+        let mut engine = ENGINE.lock().await;
+        let request = test_request("include_moves_ownership").with_moves_ownership();
+        engine.stdin.send(&Request::Analyze(request)).await.unwrap();
+
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "include_moves_ownership");
+        assert!(response.ownership.is_none());
+        assert!(response.ownership_stdev.is_none());
+        assert!(!response.move_infos.is_empty());
+        let mv = &response.move_infos[0];
+        let ownership = assert_matches!(mv.ownership.as_ref(), Some(o) => o);
+        assert!(ownership[9 * 19 + 9] < 0.5);
+        assert!(mv.ownership_stdev.is_none());
+    }
+
+    #[tokio::test]
+    async fn include_moves_ownership_stdev() {
+        let mut engine = ENGINE.lock().await;
+        let request = test_request("include_moves_ownership_stdev").with_moves_ownership_stdev();
+        engine.stdin.send(&Request::Analyze(request)).await.unwrap();
+
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "include_moves_ownership_stdev");
+        assert!(response.ownership.is_none());
+        assert!(response.ownership_stdev.is_none());
+        assert!(!response.move_infos.is_empty());
+        let mv = &response.move_infos[0];
+        assert!(mv.ownership.is_none());
+        let ownership_stdev = assert_matches!(mv.ownership_stdev.as_ref(), Some(s) => s);
+        assert!(ownership_stdev[9 * 19 + 9] < 0.1);
+    }
+
+    #[tokio::test]
     async fn override_settings() {
         let mut engine = ENGINE.lock().await;
         let request = test_request("override_settings")

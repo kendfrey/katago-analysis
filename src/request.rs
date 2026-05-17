@@ -39,6 +39,18 @@ pub struct AnalysisRequest {
     /// The maximum length of the principal variation to return, not including the first move.
     pub analysis_pv_len: Option<usize>,
 
+    /// Whether to return the ownership prediction.
+    pub include_ownership: bool,
+
+    /// Whether to return the standard deviation of the ownership prediction.
+    pub include_ownership_stdev: bool,
+
+    /// Whether to return the ownership prediction for each move.
+    pub include_moves_ownership: bool,
+
+    /// Whether to return the standard deviation of the ownership prediction for each move.
+    pub include_moves_ownership_stdev: bool,
+
     /// Whether to return the number of visits for each position in the principal variation.
     pub include_pv_visits: bool,
 
@@ -70,6 +82,10 @@ impl AnalysisRequest {
             root_policy_temperature: None,
             root_fpu_reduction_max: None,
             analysis_pv_len: None,
+            include_ownership: false,
+            include_ownership_stdev: false,
+            include_moves_ownership: false,
+            include_moves_ownership_stdev: false,
             include_pv_visits: false,
             override_settings: None,
             report_during_search_every: None,
@@ -107,6 +123,10 @@ impl AnalysisRequest {
             root_policy_temperature: self.root_policy_temperature,
             root_fpu_reduction_max: self.root_fpu_reduction_max,
             analysis_pv_len: self.analysis_pv_len,
+            include_ownership: self.include_ownership,
+            include_ownership_stdev: self.include_ownership_stdev,
+            include_moves_ownership: self.include_moves_ownership,
+            include_moves_ownership_stdev: self.include_moves_ownership_stdev,
             include_pv_visits: self.include_pv_visits,
             override_settings: self.override_settings,
             report_during_search_every: self.report_during_search_every,
@@ -158,6 +178,30 @@ impl AnalysisRequest {
     /// Sets the maximum length of the principal variation to return, not including the first move.
     pub fn with_analysis_pv_len(mut self, analysis_pv_len: usize) -> Self {
         self.analysis_pv_len = Some(analysis_pv_len);
+        self
+    }
+
+    /// Includes the ownership prediction.
+    pub fn with_ownership(mut self) -> Self {
+        self.include_ownership = true;
+        self
+    }
+
+    /// Includes the standard deviation of the ownership prediction.
+    pub fn with_ownership_stdev(mut self) -> Self {
+        self.include_ownership_stdev = true;
+        self
+    }
+
+    /// Includes the ownership prediction for each move.
+    pub fn with_moves_ownership(mut self) -> Self {
+        self.include_moves_ownership = true;
+        self
+    }
+
+    /// Includes the standard deviation of the ownership prediction for each move.
+    pub fn with_moves_ownership_stdev(mut self) -> Self {
+        self.include_moves_ownership_stdev = true;
         self
     }
 

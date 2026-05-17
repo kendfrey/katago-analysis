@@ -159,6 +159,22 @@ pub struct AnalysisRequest {
     #[serde(rename = "analysisPVLen")]
     pub analysis_pv_len: Option<usize>,
 
+    /// Whether to return the ownership prediction.
+    #[serde(skip_serializing_if = "Not::not")]
+    pub include_ownership: bool,
+
+    /// Whether to return the standard deviation of the ownership prediction.
+    #[serde(skip_serializing_if = "Not::not")]
+    pub include_ownership_stdev: bool,
+
+    /// Whether to return the ownership prediction for each move.
+    #[serde(skip_serializing_if = "Not::not")]
+    pub include_moves_ownership: bool,
+
+    /// Whether to return the standard deviation of the ownership prediction for each move.
+    #[serde(skip_serializing_if = "Not::not")]
+    pub include_moves_ownership_stdev: bool,
+
     /// Whether to return the number of visits for each position in the principal variation.
     #[serde(rename = "includePVVisits", skip_serializing_if = "Not::not")]
     pub include_pv_visits: bool,
@@ -194,6 +210,10 @@ impl AnalysisRequest {
             root_policy_temperature: None,
             root_fpu_reduction_max: None,
             analysis_pv_len: None,
+            include_ownership: false,
+            include_ownership_stdev: false,
+            include_moves_ownership: false,
+            include_moves_ownership_stdev: false,
             include_pv_visits: false,
             override_settings: None,
             report_during_search_every: None,
@@ -251,6 +271,30 @@ impl AnalysisRequest {
     /// Sets the maximum length of the principal variation to return, not including the first move.
     pub fn with_analysis_pv_len(mut self, analysis_pv_len: usize) -> Self {
         self.analysis_pv_len = Some(analysis_pv_len);
+        self
+    }
+
+    /// Includes the ownership prediction.
+    pub fn with_ownership(mut self) -> Self {
+        self.include_ownership = true;
+        self
+    }
+
+    /// Includes the standard deviation of the ownership prediction.
+    pub fn with_ownership_stdev(mut self) -> Self {
+        self.include_ownership_stdev = true;
+        self
+    }
+
+    /// Includes the ownership prediction for each move.
+    pub fn with_moves_ownership(mut self) -> Self {
+        self.include_moves_ownership = true;
+        self
+    }
+
+    /// Includes the standard deviation of the ownership prediction for each move.
+    pub fn with_moves_ownership_stdev(mut self) -> Self {
+        self.include_moves_ownership_stdev = true;
         self
     }
 

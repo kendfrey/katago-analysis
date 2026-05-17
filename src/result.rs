@@ -1,3 +1,5 @@
+use std::ops::Index;
+
 use crate::{engine::AnalysisResponse, *};
 
 /// The result of analyzing a position.
@@ -14,22 +16,30 @@ pub struct AnalysisResult {
 
     /// Information about the root position.
     pub root_info: RootInfo,
+
+    /// The ownership prediction.
+    pub ownership: Option<Matrix<f64>>,
+
+    /// The standard deviation of the ownership prediction.
+    pub ownership_stdev: Option<Matrix<f64>>,
 }
 
 impl AnalysisResult {
     /// Creates a result from the lower-level equivalent used by the [`engine`] module.
     ///
     /// You probably don't need to use this unless you're directly using the lower-level API in the [`engine`] module.
-    pub fn from_engine_response(response: AnalysisResponse, height: u8) -> Self {
+    pub fn from_engine_response(response: AnalysisResponse, width: u8, height: u8) -> Self {
         AnalysisResult {
             is_during_search: response.is_during_search,
             turn_number: response.turn_number,
             move_infos: response
                 .move_infos
                 .into_iter()
-                .map(|info| MoveInfo::from_engine_move_info(info, height))
+                .map(|info| MoveInfo::from_engine_move_info(info, width, height))
                 .collect(),
             root_info: RootInfo::from_engine_root_info(response.root_info),
+            ownership: response.ownership.map(|m| Matrix::from_raw(m, width)),
+            ownership_stdev: response.ownership_stdev.map(|m| Matrix::from_raw(m, width)),
         }
     }
 }
@@ -58,13 +68,19 @@ pub struct MoveInfo {
 
     /// The number of visits invested in each move in the principal variation.
     pub pv_edge_visits: Option<Vec<u32>>,
+
+    /// The ownership prediction.
+    pub ownership: Option<Matrix<f64>>,
+
+    /// The standard deviation of the ownership prediction.
+    pub ownership_stdev: Option<Matrix<f64>>,
 }
 
 impl MoveInfo {
     /// Creates a move analysis from the lower-level equivalent used by the [`engine`] module.
     ///
     /// You probably don't need to use this unless you're directly using the lower-level API in the [`engine`] module.
-    pub fn from_engine_move_info(info: engine::MoveInfo, height: u8) -> Self {
+    pub fn from_engine_move_info(info: engine::MoveInfo, width: u8, height: u8) -> Self {
         MoveInfo {
             mv: Move::from_gtp(&info.mv, height).expect("invalid move"),
             visits: info.visits,
@@ -77,6 +93,8 @@ impl MoveInfo {
                 .collect(),
             pv_visits: info.pv_visits,
             pv_edge_visits: info.pv_edge_visits,
+            ownership: info.ownership.map(|m| Matrix::from_raw(m, width)),
+            ownership_stdev: info.ownership_stdev.map(|m| Matrix::from_raw(m, width)),
         }
     }
 }
@@ -100,5 +118,41 @@ impl RootInfo {
             winrate: info.winrate,
             visits: info.visits,
         }
+    }
+}
+
+/// A 2D matrix representing the game board.
+///
+/// (0, 0) is the top-left corner of the board.
+#[derive(Debug, Clone)]
+pub struct Matrix<T> {
+    stride: usize,
+
+    /// The raw data stored in row-major order.
+    pub raw: Vec<T>,
+}
+
+impl<T> Matrix<T> {
+    /// Gets the value at the given coordinates.
+    pub fn get(&self, x: u8, y: u8) -> &T {
+        &self.raw[(y as usize) * self.stride + (x as usize)]
+    }
+
+    /// Creates a matrix from the raw data.
+    ///
+    /// You probably don't need to use this unless you're directly using the lower-level API in the [`engine`] module.
+    pub fn from_raw(raw: Vec<T>, stride: u8) -> Self {
+        Self {
+            raw,
+            stride: stride as usize,
+        }
+    }
+}
+
+impl<T> Index<Coord> for Matrix<T> {
+    type Output = T;
+
+    fn index(&self, Coord(x, y): Coord) -> &Self::Output {
+        self.get(x, y)
     }
 }

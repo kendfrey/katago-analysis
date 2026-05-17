@@ -126,6 +126,7 @@ impl<W: WarningHandling> Analyzer<W> {
 
         let pending_request = PendingRequest::<W> {
             positions: senders,
+            width: request.board_x_size,
             height: request.board_y_size,
         };
 
@@ -326,6 +327,7 @@ async fn handle_responses<W: WarningHandling>(
                     if let Some(sender) = request.positions.get(&turn_number) {
                         let result = Some(AnalysisResult::from_engine_response(
                             response,
+                            request.width,
                             request.height,
                         ));
                         sender.send_modify(|r| W::set_result(r, result)).await;
@@ -548,6 +550,7 @@ where
 
 struct PendingRequest<W: WarningHandling = WarningsAsErrors> {
     positions: HashMap<usize, Sender<WarningResult<Option<AnalysisResult>, W>>>,
+    width: u8,
     height: u8,
 }
 

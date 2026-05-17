@@ -254,6 +254,12 @@ pub struct AnalysisResponse {
 
     /// Information about the root position.
     pub root_info: RootInfo,
+
+    /// The ownership prediction, in row-major order.
+    pub ownership: Option<Vec<f64>>,
+
+    /// The standard deviation of the ownership prediction, in row-major order.
+    pub ownership_stdev: Option<Vec<f64>>,
 }
 
 /// The result of analyzing a candidate move.
@@ -282,6 +288,12 @@ pub struct MoveInfo {
 
     /// The number of visits invested in each move in the principal variation.
     pub pv_edge_visits: Option<Vec<u32>>,
+
+    /// The ownership prediction, in row-major order.
+    pub ownership: Option<Vec<f64>>,
+
+    /// The standard deviation of the ownership prediction, in row-major order.
+    pub ownership_stdev: Option<Vec<f64>>,
 }
 
 /// The result of analyzing the root position.
