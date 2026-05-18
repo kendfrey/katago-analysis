@@ -22,13 +22,25 @@ pub struct AnalysisResult {
 
     /// The standard deviation of the ownership prediction.
     pub ownership_stdev: Option<Matrix<f64>>,
+
+    /// The policy prediction.
+    pub policy: Option<Matrix<f64>>,
+
+    /// The pass policy prediction.
+    pub policy_pass: Option<f64>,
+
+    /// The humanSL policy prediction.
+    pub human_policy: Option<Matrix<f64>>,
+
+    /// The humanSL pass policy prediction.
+    pub human_policy_pass: Option<f64>,
 }
 
 impl AnalysisResult {
     /// Creates a result from the lower-level equivalent used by the [`engine`] module.
     ///
     /// You probably don't need to use this unless you're directly using the lower-level API in the [`engine`] module.
-    pub fn from_engine_response(response: AnalysisResponse, width: u8, height: u8) -> Self {
+    pub fn from_engine_response(mut response: AnalysisResponse, width: u8, height: u8) -> Self {
         AnalysisResult {
             is_during_search: response.is_during_search,
             turn_number: response.turn_number,
@@ -40,6 +52,10 @@ impl AnalysisResult {
             root_info: RootInfo::from_engine_root_info(response.root_info),
             ownership: response.ownership.map(|m| Matrix::from_raw(m, width)),
             ownership_stdev: response.ownership_stdev.map(|m| Matrix::from_raw(m, width)),
+            policy_pass: response.policy.as_mut().and_then(|p| p.pop()),
+            policy: response.policy.map(|p| Matrix::from_raw(p, width)),
+            human_policy_pass: response.human_policy.as_mut().and_then(|p| p.pop()),
+            human_policy: response.human_policy.map(|p| Matrix::from_raw(p, width)),
         }
     }
 }

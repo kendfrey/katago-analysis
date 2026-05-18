@@ -260,6 +260,12 @@ pub struct AnalysisResponse {
 
     /// The standard deviation of the ownership prediction, in row-major order.
     pub ownership_stdev: Option<Vec<f64>>,
+
+    /// The policy prediction, in row-major order with the pass move at the end.
+    pub policy: Option<Vec<f64>>,
+
+    /// The humanSL policy prediction, in row-major order with the pass move at the end.
+    pub human_policy: Option<Vec<f64>>,
 }
 
 /// The result of analyzing a candidate move.

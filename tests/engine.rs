@@ -367,6 +367,36 @@ mod requests {
     }
 
     #[tokio::test]
+    async fn policy() {
+        let mut engine = ENGINE.lock().await;
+        let request = test_request("policy");
+        engine.stdin.send(&Request::Analyze(request)).await.unwrap();
+
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "policy");
+        assert!(response.policy.is_none());
+        assert!(response.human_policy.is_none());
+    }
+
+    #[tokio::test]
+    async fn include_policy() {
+        let mut engine = ENGINE.lock().await;
+        let request = test_request("include_policy").with_policy();
+        engine.stdin.send(&Request::Analyze(request)).await.unwrap();
+
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "include_policy");
+        let policy = assert_matches!(response.policy.as_ref(), Some(p) => p);
+        assert_eq!(policy.len(), 19 * 19 + 1);
+        assert!(policy[3 * 19 + 3] > 0.1);
+        let human_policy = assert_matches!(response.human_policy.as_ref(), Some(p) => p);
+        assert_eq!(human_policy.len(), 19 * 19 + 1);
+        assert!(human_policy[3 * 19 + 3] > 0.1);
+    }
+
+    #[tokio::test]
     async fn override_settings() {
         let mut engine = ENGINE.lock().await;
         let request = test_request("override_settings")

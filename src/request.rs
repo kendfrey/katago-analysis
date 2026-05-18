@@ -51,6 +51,9 @@ pub struct AnalysisRequest {
     /// Whether to return the standard deviation of the ownership prediction for each move.
     pub include_moves_ownership_stdev: bool,
 
+    /// Whether to return the neural network policy output.
+    pub include_policy: bool,
+
     /// Whether to return the number of visits for each position in the principal variation.
     pub include_pv_visits: bool,
 
@@ -86,6 +89,7 @@ impl AnalysisRequest {
             include_ownership_stdev: false,
             include_moves_ownership: false,
             include_moves_ownership_stdev: false,
+            include_policy: false,
             include_pv_visits: false,
             override_settings: None,
             report_during_search_every: None,
@@ -127,6 +131,7 @@ impl AnalysisRequest {
             include_ownership_stdev: self.include_ownership_stdev,
             include_moves_ownership: self.include_moves_ownership,
             include_moves_ownership_stdev: self.include_moves_ownership_stdev,
+            include_policy: self.include_policy,
             include_pv_visits: self.include_pv_visits,
             override_settings: self.override_settings,
             report_during_search_every: self.report_during_search_every,
@@ -202,6 +207,12 @@ impl AnalysisRequest {
     /// Includes the standard deviation of the ownership prediction for each move.
     pub fn with_moves_ownership_stdev(mut self) -> Self {
         self.include_moves_ownership_stdev = true;
+        self
+    }
+
+    /// Includes the neural network policy output.
+    pub fn with_policy(mut self) -> Self {
+        self.include_policy = true;
         self
     }
 

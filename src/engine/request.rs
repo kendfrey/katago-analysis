@@ -175,6 +175,10 @@ pub struct AnalysisRequest {
     #[serde(skip_serializing_if = "Not::not")]
     pub include_moves_ownership_stdev: bool,
 
+    /// Whether to return the neural network policy output.
+    #[serde(skip_serializing_if = "Not::not")]
+    pub include_policy: bool,
+
     /// Whether to return the number of visits for each position in the principal variation.
     #[serde(rename = "includePVVisits", skip_serializing_if = "Not::not")]
     pub include_pv_visits: bool,
@@ -214,6 +218,7 @@ impl AnalysisRequest {
             include_ownership_stdev: false,
             include_moves_ownership: false,
             include_moves_ownership_stdev: false,
+            include_policy: false,
             include_pv_visits: false,
             override_settings: None,
             report_during_search_every: None,
@@ -295,6 +300,12 @@ impl AnalysisRequest {
     /// Includes the standard deviation of the ownership prediction for each move.
     pub fn with_moves_ownership_stdev(mut self) -> Self {
         self.include_moves_ownership_stdev = true;
+        self
+    }
+
+    /// Includes the neural network policy output.
+    pub fn with_policy(mut self) -> Self {
+        self.include_policy = true;
         self
     }
 
