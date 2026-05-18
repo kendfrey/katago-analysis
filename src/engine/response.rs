@@ -298,6 +298,9 @@ pub struct MoveInfo {
     /// The policy prior of this move.
     pub prior: f64,
 
+    /// The predicted probability that the game will have a void result.
+    pub no_result_value: Option<f64>,
+
     /// The humanSL policy prior of this move.
     pub human_prior: Option<f64>,
 

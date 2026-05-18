@@ -88,6 +88,9 @@ pub struct MoveInfo {
     /// The policy prior of this move.
     pub prior: f64,
 
+    /// The predicted probability that the game will have a void result.
+    pub no_result_value: Option<f64>,
+
     /// The humanSL policy prior of this move.
     pub human_prior: Option<f64>,
 
@@ -145,6 +148,7 @@ impl MoveInfo {
             score_stdev: info.score_stdev,
             score_selfplay: info.score_selfplay,
             prior: info.prior,
+            no_result_value: info.no_result_value,
             human_prior: info.human_prior,
             utility: info.utility,
             lcb: info.lcb,

@@ -57,6 +57,9 @@ pub struct AnalysisRequest {
     /// Whether to return the number of visits for each position in the principal variation.
     pub include_pv_visits: bool,
 
+    /// Whether to return the predicted probability that the game will have a void result.
+    pub include_no_result_value: bool,
+
     /// Config overrides for this request.
     pub override_settings: Option<Config>,
 
@@ -91,6 +94,7 @@ impl AnalysisRequest {
             include_moves_ownership_stdev: false,
             include_policy: false,
             include_pv_visits: false,
+            include_no_result_value: false,
             override_settings: None,
             report_during_search_every: None,
         }
@@ -133,6 +137,7 @@ impl AnalysisRequest {
             include_moves_ownership_stdev: self.include_moves_ownership_stdev,
             include_policy: self.include_policy,
             include_pv_visits: self.include_pv_visits,
+            include_no_result_value: self.include_no_result_value,
             override_settings: self.override_settings,
             report_during_search_every: self.report_during_search_every,
         }
@@ -219,6 +224,12 @@ impl AnalysisRequest {
     /// Includes the number of visits for each position in the principal variation.
     pub fn with_pv_visits(mut self) -> Self {
         self.include_pv_visits = true;
+        self
+    }
+
+    /// Includes the predicted probability that the game will have a void result.
+    pub fn with_no_result_value(mut self) -> Self {
+        self.include_no_result_value = true;
         self
     }
 

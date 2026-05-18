@@ -68,6 +68,7 @@ async fn main() {
         test!(include_moves_ownership_stdev, analyzer),
         test!(policy, analyzer),
         test!(include_policy, analyzer),
+        test!(include_no_result_value, analyzer).with_ignored_flag(true), // Ignored: Unreleased feature
         test!(override_settings, analyzer),
         test!(report_during_search_every, analyzer),
         test!(pass, analyzer),
@@ -381,6 +382,15 @@ async fn include_policy(analyzer: &mut Analyzer) {
     let human_policy = assert_matches!(result.human_policy.as_ref(), Some(p) => p);
     assert!(*human_policy.get(3, 3) > 0.1);
     assert_matches!(result.human_policy_pass, Some(p) if p < 0.01);
+}
+
+async fn include_no_result_value(analyzer: &mut Analyzer) {
+    let request = test_request().with_no_result_value();
+
+    let result = assert_matches!(analyzer.analyze(request).await, Ok(Some(r)) => r);
+    assert!(!result.move_infos.is_empty());
+    let mv = &result.move_infos[0];
+    assert_matches!(mv.no_result_value, Some(v) if v < 0.01);
 }
 
 async fn override_settings(analyzer: &mut Analyzer) {

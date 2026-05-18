@@ -397,6 +397,20 @@ mod requests {
     }
 
     #[tokio::test]
+    #[ignore] // Ignored: Unreleased feature
+    async fn include_no_result_value() {
+        let mut engine = ENGINE.lock().await;
+        let request = test_request("include_no_result_value").with_no_result_value();
+        engine.stdin.send(&Request::Analyze(request)).await.unwrap();
+
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "include_no_result_value");
+        assert!(!response.move_infos.is_empty());
+        assert_matches!(response.move_infos[0].no_result_value, Some(v) if v < 0.01);
+    }
+
+    #[tokio::test]
     async fn override_settings() {
         let mut engine = ENGINE.lock().await;
         let request = test_request("override_settings")
