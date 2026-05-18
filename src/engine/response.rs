@@ -292,6 +292,9 @@ pub struct MoveInfo {
     /// The policy prior of this move.
     pub prior: f64,
 
+    /// The humanSL policy prior of this move.
+    pub human_prior: Option<f64>,
+
     /// The utility of this move.
     pub utility: f64,
 
@@ -383,4 +386,19 @@ pub struct RootInfo {
 
     /// A measure of how much meaningful game is left until the winner is known, predicted by the neural network.
     pub raw_var_time_left: f64,
+
+    /// The winrate prediction from the humanSL neural network.
+    pub human_winrate: Option<f64>,
+
+    /// The score prediction from the humanSL neural network.
+    pub human_score_mean: Option<f64>,
+
+    /// The score standard deviation prediction from the humanSL neural network.
+    pub human_score_stdev: Option<f64>,
+
+    /// The short-term winrate uncertainty prediction from the humanSL neural network.
+    pub human_st_wr_error: Option<f64>,
+
+    /// The short-term score uncertainty prediction from the humanSL neural network.
+    pub human_st_score_error: Option<f64>,
 }

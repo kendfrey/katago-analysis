@@ -16,6 +16,10 @@ fn launch_options() -> LaunchOptions {
         "test_analysis.cfg".to_string(),
         env::var("KATAGO_MODEL_PATH").expect("KATAGO_MODEL_PATH environment variable not set"),
     )
+    .with_human_model(
+        env::var("KATAGO_HUMAN_MODEL_PATH")
+            .expect("KATAGO_HUMAN_MODEL_PATH environment variable not set"),
+    )
 }
 
 fn warning_request() -> AnalysisRequest {

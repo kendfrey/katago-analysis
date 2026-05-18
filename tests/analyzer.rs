@@ -170,6 +170,7 @@ async fn move_infos(analyzer: &mut Analyzer) {
     assert!(mv.score_stdev > 5.0);
     assert!(mv.score_selfplay.abs() < 5.0);
     assert!(mv.prior > 0.1);
+    assert_matches!(mv.human_prior, Some(p) if p > 0.1);
     assert!(mv.utility.abs() < 1.0);
     assert!(mv.lcb < mv.winrate);
     assert!(mv.utility_lcb < mv.utility);
@@ -199,21 +200,26 @@ async fn move_infos(analyzer: &mut Analyzer) {
 async fn root_info(analyzer: &mut Analyzer) {
     let request = test_request();
 
-    let request = assert_matches!(analyzer.analyze(request).await, Ok(Some(r)) => r);
-    assert!(request.root_info.winrate < 0.9);
-    assert!(request.root_info.score_lead.abs() < 5.0);
-    assert!(request.root_info.score_selfplay.abs() < 5.0);
-    assert!(request.root_info.utility.abs() < 1.0);
-    assert!(request.root_info.visits >= 4);
-    assert_eq!(request.root_info.current_player, Player::Black);
-    assert!(request.root_info.raw_winrate < 0.9);
-    assert!(request.root_info.raw_lead.abs() < 5.0);
-    assert!(request.root_info.raw_score_selfplay.abs() < 5.0);
-    assert!(request.root_info.raw_score_selfplay_stdev > 5.0);
-    assert!(request.root_info.raw_no_result_prob < 0.01);
-    assert!(request.root_info.raw_st_wr_error < 0.1);
-    assert!(request.root_info.raw_st_score_error > 0.1);
-    assert!(request.root_info.raw_var_time_left > 0.0);
+    let result = assert_matches!(analyzer.analyze(request).await, Ok(Some(r)) => r);
+    assert!(result.root_info.winrate < 0.9);
+    assert!(result.root_info.score_lead.abs() < 5.0);
+    assert!(result.root_info.score_selfplay.abs() < 5.0);
+    assert!(result.root_info.utility.abs() < 1.0);
+    assert!(result.root_info.visits >= 4);
+    assert_eq!(result.root_info.current_player, Player::Black);
+    assert!(result.root_info.raw_winrate < 0.9);
+    assert!(result.root_info.raw_lead.abs() < 5.0);
+    assert!(result.root_info.raw_score_selfplay.abs() < 5.0);
+    assert!(result.root_info.raw_score_selfplay_stdev > 5.0);
+    assert!(result.root_info.raw_no_result_prob < 0.01);
+    assert!(result.root_info.raw_st_wr_error < 0.1);
+    assert!(result.root_info.raw_st_score_error > 0.1);
+    assert!(result.root_info.raw_var_time_left > 0.0);
+    assert_matches!(result.root_info.human_winrate, Some(wr) if wr < 0.9);
+    assert_matches!(result.root_info.human_score_mean, Some(m) if m.abs() < 5.0);
+    assert_matches!(result.root_info.human_score_stdev, Some(s) if s > 5.0);
+    assert_matches!(result.root_info.human_st_wr_error, Some(e) if e < 0.1);
+    assert_matches!(result.root_info.human_st_score_error, Some(e) if e > 0.1);
 }
 
 async fn komi(analyzer: &mut Analyzer) {

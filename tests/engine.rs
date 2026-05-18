@@ -11,6 +11,10 @@ static ENGINE: LazyLock<Mutex<Engine>> = LazyLock::new(|| {
         env::var("KATAGO_PATH").expect("KATAGO_PATH environment variable not set"),
         "test_analysis.cfg".to_string(),
         env::var("KATAGO_MODEL_PATH").expect("KATAGO_MODEL_PATH environment variable not set"),
+    )
+    .with_human_model(
+        env::var("KATAGO_HUMAN_MODEL_PATH")
+            .expect("KATAGO_HUMAN_MODEL_PATH environment variable not set"),
     );
     Mutex::new(Engine::launch(&options).unwrap())
 });
@@ -70,6 +74,7 @@ mod requests {
         assert!(mv.score_stdev > 5.0);
         assert!(mv.score_selfplay.abs() < 5.0);
         assert!(mv.prior > 0.1);
+        assert_matches!(mv.human_prior, Some(p) if p > 0.1);
         assert!(mv.utility.abs() < 1.0);
         assert!(mv.lcb < mv.winrate);
         assert!(mv.utility_lcb < mv.utility);
@@ -119,6 +124,11 @@ mod requests {
         assert!(response.root_info.raw_st_wr_error < 0.1);
         assert!(response.root_info.raw_st_score_error > 0.1);
         assert!(response.root_info.raw_var_time_left > 0.0);
+        assert_matches!(response.root_info.human_winrate, Some(wr) if wr < 0.9);
+        assert_matches!(response.root_info.human_score_mean, Some(m) if m.abs() < 5.0);
+        assert_matches!(response.root_info.human_score_stdev, Some(s) if s > 5.0);
+        assert_matches!(response.root_info.human_st_wr_error, Some(e) if e < 0.1);
+        assert_matches!(response.root_info.human_st_score_error, Some(e) if e > 0.1);
     }
 
     #[tokio::test]
@@ -596,11 +606,14 @@ mod requests {
             .await
             .unwrap();
 
-        assert_matches!(
+        let (id, models) = assert_matches!(
             engine.stdout.next().await,
-            Some(Ok(Response::QueryModels { id, models }))
-                if id == "query_models" && models.iter().any(|m| !m.uses_humansl_profile)
+            Some(Ok(Response::QueryModels { id, models })) => (id, models)
         );
+        assert_eq!(id, "query_models");
+        assert_eq!(models.len(), 2);
+        assert!(!models[0].uses_humansl_profile);
+        assert!(models[1].uses_humansl_profile);
     }
 
     #[tokio::test]

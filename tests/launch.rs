@@ -33,30 +33,44 @@ async fn inherit_stderr() {
 }
 
 #[tokio::test]
-async fn human_model() {
+async fn no_human_model() {
     let _guard = MUTEX.lock().await;
-    let options = launch_options().with_human_model(
-        env::var("KATAGO_HUMAN_MODEL_PATH")
-            .expect("KATAGO_HUMAN_MODEL_PATH environment variable not set"),
-    );
+    let options = launch_options();
     let mut engine = Engine::launch(&options).unwrap();
     engine
         .stdin
         .send(&Request::QueryModels {
-            id: "human_model".to_string(),
+            id: "no_human_model".to_string(),
         })
         .await
         .unwrap();
 
-    assert_matches!(
+    let (id, models) = assert_matches!(
         engine.stdout.next().await,
-        Some(Ok(Response::QueryModels { id, models })) => {
-            assert_eq!(id, "human_model");
-            assert_eq!(models.len(), 2);
-            assert!(!models[0].uses_humansl_profile);
-            assert!(models[1].uses_humansl_profile);
-        }
+        Some(Ok(Response::QueryModels { id, models })) => (id, models)
     );
+    assert_eq!(id, "no_human_model");
+    assert_eq!(models.len(), 1);
+    assert!(!models[0].uses_humansl_profile);
+
+    let request = AnalysisRequest::new(
+        "no_human_model.analyze".to_string(),
+        Rules::chinese(),
+        19,
+        19,
+        vec![],
+    );
+    engine.stdin.send(&Request::Analyze(request)).await.unwrap();
+
+    let response = assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+    assert_eq!(response.id, "no_human_model.analyze");
+    assert!(!response.move_infos.is_empty());
+    assert!(response.move_infos[0].human_prior.is_none());
+    assert!(response.root_info.human_winrate.is_none());
+    assert!(response.root_info.human_score_mean.is_none());
+    assert!(response.root_info.human_score_stdev.is_none());
+    assert!(response.root_info.human_st_wr_error.is_none());
+    assert!(response.root_info.human_st_score_error.is_none());
 }
 
 #[tokio::test]
