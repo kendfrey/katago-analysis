@@ -155,8 +155,50 @@ pub struct RootInfo {
     /// The winrate, in the range [0, 1].
     pub winrate: f64,
 
+    /// The predicted number of points that the current side is leading by.
+    pub score_lead: f64,
+
+    /// The predicted score at the end of the game after selfplay.
+    pub score_selfplay: f64,
+
+    /// The utility.
+    pub utility: f64,
+
     /// The number of visits received.
     pub visits: u32,
+
+    /// The hash of this position.
+    pub this_hash: String,
+
+    /// The hash of this position that is invariant under board symmetries.
+    pub sym_hash: String,
+
+    /// The player to move.
+    pub current_player: Player,
+
+    /// The winrate prediction from the neural network.
+    pub raw_winrate: f64,
+
+    /// The score lead prediction from the neural network.
+    pub raw_lead: f64,
+
+    /// The selfplay score prediction from the neural network.
+    pub raw_score_selfplay: f64,
+
+    /// The selfplay score standard deviation prediction from the neural network.
+    pub raw_score_selfplay_stdev: f64,
+
+    /// The void result probability prediction from the neural network.
+    pub raw_no_result_prob: f64,
+
+    /// The short-term winrate uncertainty prediction from the neural network.
+    pub raw_st_wr_error: f64,
+
+    /// The short-term score uncertainty prediction from the neural network.
+    pub raw_st_score_error: f64,
+
+    /// A measure of how much meaningful game is left until the winner is known, predicted by the neural network.
+    pub raw_var_time_left: f64,
 }
 
 impl RootInfo {
@@ -166,7 +208,21 @@ impl RootInfo {
     pub fn from_engine_root_info(info: engine::RootInfo) -> Self {
         RootInfo {
             winrate: info.winrate,
+            score_lead: info.score_lead,
+            score_selfplay: info.score_selfplay,
+            utility: info.utility,
             visits: info.visits,
+            this_hash: info.this_hash,
+            sym_hash: info.sym_hash,
+            current_player: info.current_player,
+            raw_winrate: info.raw_winrate,
+            raw_lead: info.raw_lead,
+            raw_score_selfplay: info.raw_score_selfplay,
+            raw_score_selfplay_stdev: info.raw_score_selfplay_stdev,
+            raw_no_result_prob: info.raw_no_result_prob,
+            raw_st_wr_error: info.raw_st_wr_error,
+            raw_st_score_error: info.raw_st_score_error,
+            raw_var_time_left: info.raw_var_time_left,
         }
     }
 }

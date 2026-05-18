@@ -51,6 +51,7 @@ async fn main() {
         test!(analyze_game, analyzer),
         test!(analyze_positions, analyzer),
         test!(move_infos, analyzer),
+        test!(root_info, analyzer),
         test!(komi, analyzer),
         test!(white_handicap_bonus, analyzer),
         test!(initial_stones, analyzer),
@@ -193,6 +194,26 @@ async fn move_infos(analyzer: &mut Analyzer) {
         Some(m) => m
     );
     assert_eq!(symm_move.winrate, orig_move.winrate);
+}
+
+async fn root_info(analyzer: &mut Analyzer) {
+    let request = test_request();
+
+    let request = assert_matches!(analyzer.analyze(request).await, Ok(Some(r)) => r);
+    assert!(request.root_info.winrate < 0.9);
+    assert!(request.root_info.score_lead.abs() < 5.0);
+    assert!(request.root_info.score_selfplay.abs() < 5.0);
+    assert!(request.root_info.utility.abs() < 1.0);
+    assert!(request.root_info.visits >= 4);
+    assert_eq!(request.root_info.current_player, Player::Black);
+    assert!(request.root_info.raw_winrate < 0.9);
+    assert!(request.root_info.raw_lead.abs() < 5.0);
+    assert!(request.root_info.raw_score_selfplay.abs() < 5.0);
+    assert!(request.root_info.raw_score_selfplay_stdev > 5.0);
+    assert!(request.root_info.raw_no_result_prob < 0.01);
+    assert!(request.root_info.raw_st_wr_error < 0.1);
+    assert!(request.root_info.raw_st_score_error > 0.1);
+    assert!(request.root_info.raw_var_time_left > 0.0);
 }
 
 async fn komi(analyzer: &mut Analyzer) {

@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde_json::{Map, Value};
 
-use crate::Model;
+use crate::{Model, Player};
 
 /// A response from the analysis engine.
 #[derive(Debug, Clone, Deserialize)]
@@ -339,6 +339,48 @@ pub struct RootInfo {
     /// The winrate, in the range [0, 1].
     pub winrate: f64,
 
+    /// The predicted number of points that the current side is leading by.
+    pub score_lead: f64,
+
+    /// The predicted score at the end of the game after selfplay.
+    pub score_selfplay: f64,
+
+    /// The utility.
+    pub utility: f64,
+
     /// The number of visits received.
     pub visits: u32,
+
+    /// The hash of this position.
+    pub this_hash: String,
+
+    /// The hash of this position that is invariant under board symmetries.
+    pub sym_hash: String,
+
+    /// The player to move.
+    pub current_player: Player,
+
+    /// The winrate prediction from the neural network.
+    pub raw_winrate: f64,
+
+    /// The score lead prediction from the neural network.
+    pub raw_lead: f64,
+
+    /// The selfplay score prediction from the neural network.
+    pub raw_score_selfplay: f64,
+
+    /// The selfplay score standard deviation prediction from the neural network.
+    pub raw_score_selfplay_stdev: f64,
+
+    /// The void result probability prediction from the neural network.
+    pub raw_no_result_prob: f64,
+
+    /// The short-term winrate uncertainty prediction from the neural network.
+    pub raw_st_wr_error: f64,
+
+    /// The short-term score uncertainty prediction from the neural network.
+    pub raw_st_score_error: f64,
+
+    /// A measure of how much meaningful game is left until the winner is known, predicted by the neural network.
+    pub raw_var_time_left: f64,
 }

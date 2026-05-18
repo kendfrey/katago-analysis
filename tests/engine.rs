@@ -97,6 +97,31 @@ mod requests {
     }
 
     #[tokio::test]
+    async fn root_info() {
+        let mut engine = ENGINE.lock().await;
+        let request = test_request("root_info");
+        engine.stdin.send(&Request::Analyze(request)).await.unwrap();
+
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "root_info");
+        assert!(response.root_info.winrate < 0.9);
+        assert!(response.root_info.score_lead.abs() < 5.0);
+        assert!(response.root_info.score_selfplay.abs() < 5.0);
+        assert!(response.root_info.utility.abs() < 1.0);
+        assert!(response.root_info.visits >= 4);
+        assert_eq!(response.root_info.current_player, Player::Black);
+        assert!(response.root_info.raw_winrate < 0.9);
+        assert!(response.root_info.raw_lead.abs() < 5.0);
+        assert!(response.root_info.raw_score_selfplay.abs() < 5.0);
+        assert!(response.root_info.raw_score_selfplay_stdev > 5.0);
+        assert!(response.root_info.raw_no_result_prob < 0.01);
+        assert!(response.root_info.raw_st_wr_error < 0.1);
+        assert!(response.root_info.raw_st_score_error > 0.1);
+        assert!(response.root_info.raw_var_time_left > 0.0);
+    }
+
+    #[tokio::test]
     async fn komi() {
         let mut engine = ENGINE.lock().await;
         let request = test_request("komi").with_komi(0.0);
