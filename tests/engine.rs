@@ -497,6 +497,25 @@ mod requests {
     }
 
     #[tokio::test]
+    async fn priorities() {
+        let mut engine = ENGINE.lock().await;
+        let request = test_request("priorities")
+            .with_analyze_turns(vec![0, 1, 2])
+            .with_priorities(vec![1, -1, 0]);
+        engine.stdin.send(&Request::Analyze(request)).await.unwrap();
+
+        let response1 =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        let response2 =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        let response3 =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response1.turn_number, 0);
+        assert_eq!(response2.turn_number, 2);
+        assert_eq!(response3.turn_number, 1);
+    }
+
+    #[tokio::test]
     async fn query_version() {
         let mut engine = ENGINE.lock().await;
         engine

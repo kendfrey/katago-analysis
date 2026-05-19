@@ -108,6 +108,74 @@ impl<W: WarningHandling> Analyzer<W> {
         request: AnalysisRequest,
         analyze_turns: Vec<usize>,
     ) -> Result<GameAnalysisProgress<W>> {
+        self.start_analyze_positions_impl(request, analyze_turns, None)
+            .await
+    }
+
+    /// Analyzes all moves in the game with the given priorities and returns a collection of results, one for each
+    /// position.
+    ///
+    /// `priorities` must have length equal to one more than the number of moves in the game.
+    pub async fn analyze_game_prioritized(
+        &mut self,
+        request: AnalysisRequest,
+        priorities: Vec<i32>,
+    ) -> WarningResult<HashMap<usize, AnalysisResult>, W> {
+        self.start_analyze_game_prioritized(request, priorities)
+            .await?
+            .finish()
+            .await
+    }
+
+    /// Analyzes the specified positions in the game with the given priorities and returns a collection of results,
+    /// one for each position.
+    ///
+    /// `priorities` must have the same length as `analyze_turns`.
+    pub async fn analyze_positions_prioritized(
+        &mut self,
+        request: AnalysisRequest,
+        analyze_turns: Vec<usize>,
+        priorities: Vec<i32>,
+    ) -> WarningResult<HashMap<usize, AnalysisResult>, W> {
+        self.start_analyze_positions_prioritized(request, analyze_turns, priorities)
+            .await?
+            .finish()
+            .await
+    }
+
+    /// Starts analyzing all moves in the game with the given priorities and returns a collection of progress objects.
+    ///
+    /// `priorities` must have length equal to one more than the number of moves in the game.
+    pub async fn start_analyze_game_prioritized(
+        &mut self,
+        request: AnalysisRequest,
+        priorities: Vec<i32>,
+    ) -> Result<GameAnalysisProgress<W>> {
+        let positions = (0..=request.moves.len()).collect();
+        self.start_analyze_positions_prioritized(request, positions, priorities)
+            .await
+    }
+
+    /// Starts analyzing the specified positions in the game with the given priorities and returns a collection of
+    /// progress objects.
+    ///
+    /// `priorities` must have the same length as `analyze_turns`.
+    pub async fn start_analyze_positions_prioritized(
+        &mut self,
+        request: AnalysisRequest,
+        analyze_turns: Vec<usize>,
+        priorities: Vec<i32>,
+    ) -> Result<GameAnalysisProgress<W>> {
+        self.start_analyze_positions_impl(request, analyze_turns, Some(priorities))
+            .await
+    }
+
+    async fn start_analyze_positions_impl(
+        &mut self,
+        request: AnalysisRequest,
+        analyze_turns: Vec<usize>,
+        priorities: Option<Vec<i32>>,
+    ) -> Result<GameAnalysisProgress<W>> {
         let id = self.generate_id();
         let mut senders = HashMap::new();
         let mut positions = HashMap::new();
@@ -132,9 +200,11 @@ impl<W: WarningHandling> Analyzer<W> {
 
         let mut requests = self.pending_requests.requests.write().await;
         self.stdin
-            .send(&engine::Request::Analyze(
-                request.into_engine_request(id.clone(), analyze_turns),
-            ))
+            .send(&engine::Request::Analyze(request.into_engine_request(
+                id.clone(),
+                analyze_turns,
+                priorities,
+            )))
             .await?;
         requests.insert(id.clone(), pending_request);
         Ok(GameAnalysisProgress::<W> { id, positions })

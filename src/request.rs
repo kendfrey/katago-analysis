@@ -111,6 +111,7 @@ impl AnalysisRequest {
         self,
         id: String,
         analyze_turns: Vec<usize>,
+        priorities: Option<Vec<i32>>,
     ) -> engine::AnalysisRequest {
         engine::AnalysisRequest {
             id,
@@ -145,6 +146,7 @@ impl AnalysisRequest {
             override_settings: self.override_settings,
             report_during_search_every: self.report_during_search_every,
             priority: self.priority,
+            priorities,
         }
     }
 

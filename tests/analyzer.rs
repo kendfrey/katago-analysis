@@ -73,6 +73,7 @@ async fn main() {
         test!(override_settings, analyzer),
         test!(report_during_search_every, analyzer),
         test!(priority, analyzer),
+        test!(priorities, analyzer),
         test!(pass, analyzer),
         test!(query_version, analyzer),
         test!(clear_cache, analyzer),
@@ -431,6 +432,37 @@ async fn priority(analyzer: &mut Analyzer) {
         .await
         .unwrap();
     let progress3 = analyzer.start_analyze(test_request()).await.unwrap();
+
+    let mut set = JoinSet::new();
+    set.spawn(async {
+        let _ = progress1.finish().await;
+        1
+    });
+    set.spawn(async {
+        let _ = progress2.finish().await;
+        2
+    });
+    set.spawn(async {
+        let _ = progress3.finish().await;
+        3
+    });
+    let result1 = set.join_next().await.unwrap().unwrap();
+    let result2 = set.join_next().await.unwrap().unwrap();
+    let result3 = set.join_next().await.unwrap().unwrap();
+    assert_eq!(result1, 1);
+    assert_eq!(result2, 3);
+    assert_eq!(result3, 2);
+}
+
+async fn priorities(analyzer: &mut Analyzer) {
+    let mut positions = analyzer
+        .start_analyze_game_prioritized(test_request(), vec![1, -1, 0])
+        .await
+        .unwrap()
+        .into_positions();
+    let progress1 = positions.remove(&0).unwrap();
+    let progress2 = positions.remove(&1).unwrap();
+    let progress3 = positions.remove(&2).unwrap();
 
     let mut set = JoinSet::new();
     set.spawn(async {

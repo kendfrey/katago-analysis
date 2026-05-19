@@ -195,6 +195,9 @@ pub struct AnalysisRequest {
 
     /// The priority of this request.
     pub priority: Option<i32>,
+
+    /// The priorities of each position to analyze.
+    pub priorities: Option<Vec<i32>>,
 }
 
 impl AnalysisRequest {
@@ -231,6 +234,7 @@ impl AnalysisRequest {
             override_settings: None,
             report_during_search_every: None,
             priority: None,
+            priorities: None,
         }
     }
 
@@ -345,6 +349,12 @@ impl AnalysisRequest {
     /// Sets the priority of this request.
     pub fn with_priority(mut self, priority: i32) -> Self {
         self.priority = Some(priority);
+        self
+    }
+
+    /// Sets the priorities of each position to analyze.
+    pub fn with_priorities(mut self, priorities: Vec<i32>) -> Self {
+        self.priorities = Some(priorities);
         self
     }
 }
