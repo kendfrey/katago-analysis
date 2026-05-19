@@ -192,6 +192,9 @@ pub struct AnalysisRequest {
 
     /// Report partial analysis results every this many seconds.
     pub report_during_search_every: Option<f64>,
+
+    /// The priority of this request.
+    pub priority: Option<i32>,
 }
 
 impl AnalysisRequest {
@@ -227,6 +230,7 @@ impl AnalysisRequest {
             include_no_result_value: false,
             override_settings: None,
             report_during_search_every: None,
+            priority: None,
         }
     }
 
@@ -335,6 +339,12 @@ impl AnalysisRequest {
     /// Gets partial analysis results every this many seconds.
     pub fn with_report_during_search_every(mut self, seconds: f64) -> Self {
         self.report_during_search_every = Some(seconds);
+        self
+    }
+
+    /// Sets the priority of this request.
+    pub fn with_priority(mut self, priority: i32) -> Self {
+        self.priority = Some(priority);
         self
     }
 }

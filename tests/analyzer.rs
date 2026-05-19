@@ -10,6 +10,7 @@ use katago_analysis::{
     *,
 };
 use libtest_mimic::{Arguments, Trial};
+use tokio::task::JoinSet;
 
 macro_rules! test {
     ($name:ident, $input:expr) => {
@@ -71,6 +72,7 @@ async fn main() {
         test!(include_no_result_value, analyzer).with_ignored_flag(true), // Ignored: Unreleased feature
         test!(override_settings, analyzer),
         test!(report_during_search_every, analyzer),
+        test!(priority, analyzer),
         test!(pass, analyzer),
         test!(query_version, analyzer),
         test!(clear_cache, analyzer),
@@ -417,6 +419,38 @@ async fn report_during_search_every(analyzer: &mut Analyzer) {
     let result = assert_matches!(progress.finish().await, Ok(Some(r)) => r);
     assert!(!result.is_during_search);
     assert!(result.root_info.visits < 100);
+}
+
+async fn priority(analyzer: &mut Analyzer) {
+    let progress1 = analyzer
+        .start_analyze(test_request().with_priority(1))
+        .await
+        .unwrap();
+    let progress2 = analyzer
+        .start_analyze(test_request().with_priority(-1))
+        .await
+        .unwrap();
+    let progress3 = analyzer.start_analyze(test_request()).await.unwrap();
+
+    let mut set = JoinSet::new();
+    set.spawn(async {
+        let _ = progress1.finish().await;
+        1
+    });
+    set.spawn(async {
+        let _ = progress2.finish().await;
+        2
+    });
+    set.spawn(async {
+        let _ = progress3.finish().await;
+        3
+    });
+    let result1 = set.join_next().await.unwrap().unwrap();
+    let result2 = set.join_next().await.unwrap().unwrap();
+    let result3 = set.join_next().await.unwrap().unwrap();
+    assert_eq!(result1, 1);
+    assert_eq!(result2, 3);
+    assert_eq!(result3, 2);
 }
 
 async fn pass(analyzer: &mut Analyzer) {
