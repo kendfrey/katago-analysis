@@ -70,6 +70,8 @@ async fn main() {
         test!(policy, analyzer),
         test!(include_policy, analyzer),
         test!(include_no_result_value, analyzer).with_ignored_flag(true), // Ignored: Unreleased feature
+        test!(avoid_moves, analyzer),
+        test!(allow_moves, analyzer),
         test!(override_settings, analyzer),
         test!(report_during_search_every, analyzer),
         test!(priority, analyzer),
@@ -394,6 +396,35 @@ async fn include_no_result_value(analyzer: &mut Analyzer) {
     assert!(!result.move_infos.is_empty());
     let mv = &result.move_infos[0];
     assert_matches!(mv.no_result_value, Some(v) if v < 0.01);
+}
+
+async fn avoid_moves(analyzer: &mut Analyzer) {
+    let request = test_request().with_avoid_moves(vec![RestrictedMoves {
+        player: Player::Black,
+        moves: vec![Move::Move(Coord(3, 3))],
+        until_depth: 1,
+    }]);
+
+    let result = assert_matches!(analyzer.analyze(request).await, Ok(Some(r)) => r);
+    assert!(!result.move_infos.is_empty());
+    assert!(
+        !result
+            .move_infos
+            .iter()
+            .any(|mv| mv.mv == Move::Move(Coord(3, 3)))
+    );
+}
+
+async fn allow_moves(analyzer: &mut Analyzer) {
+    let request = test_request().with_allow_moves(vec![RestrictedMoves {
+        player: Player::Black,
+        moves: vec![Move::Move(Coord(3, 3))],
+        until_depth: 1,
+    }]);
+
+    let result = assert_matches!(analyzer.analyze(request).await, Ok(Some(r)) => r);
+    assert_eq!(result.move_infos.len(), 1);
+    assert_eq!(result.move_infos[0].mv, Move::Move(Coord(3, 3)));
 }
 
 async fn override_settings(analyzer: &mut Analyzer) {

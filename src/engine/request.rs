@@ -187,6 +187,12 @@ pub struct AnalysisRequest {
     #[serde(skip_serializing_if = "Not::not")]
     pub include_no_result_value: bool,
 
+    /// Moves which are forbidden.
+    pub avoid_moves: Option<Vec<RestrictedMoves>>,
+
+    /// Moves which are allowed. If specified, all other moves are forbidden.
+    pub allow_moves: Option<Vec<RestrictedMoves>>,
+
     /// Config overrides for this request.
     pub override_settings: Option<Config>,
 
@@ -231,6 +237,8 @@ impl AnalysisRequest {
             include_policy: false,
             include_pv_visits: false,
             include_no_result_value: false,
+            avoid_moves: None,
+            allow_moves: None,
             override_settings: None,
             report_during_search_every: None,
             priority: None,
@@ -334,6 +342,18 @@ impl AnalysisRequest {
         self
     }
 
+    /// Sets moves which are forbidden.
+    pub fn with_avoid_moves(mut self, avoid_moves: Vec<RestrictedMoves>) -> Self {
+        self.avoid_moves = Some(avoid_moves);
+        self
+    }
+
+    /// Sets moves which are allowed.
+    pub fn with_allow_moves(mut self, allow_moves: Vec<RestrictedMoves>) -> Self {
+        self.allow_moves = Some(allow_moves);
+        self
+    }
+
     /// Overrides config settings for this request.
     pub fn with_override_settings(mut self, config: Config) -> Self {
         self.override_settings = Some(config);
@@ -357,4 +377,19 @@ impl AnalysisRequest {
         self.priorities = Some(priorities);
         self
     }
+}
+
+/// A list of moves that are either forbidden with [`AnalysisRequest::avoid_moves`] or allowed with
+/// [`AnalysisRequest::allow_moves`].
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RestrictedMoves {
+    /// The player the move restriction applies to.
+    pub player: Player,
+
+    /// The list of moves.
+    pub moves: Vec<String>,
+
+    /// The search depth within which the restriction applies.
+    pub until_depth: u32,
 }

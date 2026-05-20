@@ -411,6 +411,40 @@ mod requests {
     }
 
     #[tokio::test]
+    async fn avoid_moves() {
+        let mut engine = ENGINE.lock().await;
+        let request = test_request("avoid_moves").with_avoid_moves(vec![RestrictedMoves {
+            player: Player::Black,
+            moves: vec!["D16".to_string()],
+            until_depth: 1,
+        }]);
+        engine.stdin.send(&Request::Analyze(request)).await.unwrap();
+
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "avoid_moves");
+        assert!(!response.move_infos.is_empty());
+        assert!(!response.move_infos.iter().any(|m| m.mv == "D16"));
+    }
+
+    #[tokio::test]
+    async fn allow_moves() {
+        let mut engine = ENGINE.lock().await;
+        let request = test_request("allow_moves").with_allow_moves(vec![RestrictedMoves {
+            player: Player::Black,
+            moves: vec!["D16".to_string()],
+            until_depth: 1,
+        }]);
+        engine.stdin.send(&Request::Analyze(request)).await.unwrap();
+
+        let response =
+            assert_matches!(engine.stdout.next().await, Some(Ok(Response::Analyze(r))) => r);
+        assert_eq!(response.id, "allow_moves");
+        assert_eq!(response.move_infos.len(), 1);
+        assert_eq!(response.move_infos[0].mv, "D16");
+    }
+
+    #[tokio::test]
     async fn override_settings() {
         let mut engine = ENGINE.lock().await;
         let request = test_request("override_settings")
