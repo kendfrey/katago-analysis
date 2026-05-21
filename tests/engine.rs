@@ -448,7 +448,7 @@ mod requests {
     async fn override_settings() {
         let mut engine = ENGINE.lock().await;
         let request = test_request("override_settings")
-            .with_override_settings(Config::new().with("maxVisits", 1));
+            .with_override_settings(Config::new().with_max_visits(1));
         engine.stdin.send(&Request::Analyze(request)).await.unwrap();
 
         let response =

@@ -428,7 +428,7 @@ async fn allow_moves(analyzer: &mut Analyzer) {
 }
 
 async fn override_settings(analyzer: &mut Analyzer) {
-    let request = test_request().with_override_settings(Config::new().with("maxVisits", 1));
+    let request = test_request().with_override_settings(Config::new().with_max_visits(1));
 
     let result = assert_matches!(analyzer.analyze(request).await, Ok(Some(r)) => r);
     assert!(result.move_infos.is_empty());

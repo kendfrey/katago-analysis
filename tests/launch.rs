@@ -1,8 +1,11 @@
 use std::env;
 
 use assert_matches::assert_matches;
-use katago_analysis::{Config, Rules, engine::*};
-use tokio::sync::Mutex;
+use katago_analysis::{Config, Rules, Side, engine::*};
+use tokio::{
+    io::{AsyncBufReadExt, BufReader},
+    sync::Mutex,
+};
 use tokio_stream::StreamExt;
 
 static MUTEX: Mutex<()> = Mutex::const_new(());
@@ -76,7 +79,7 @@ async fn no_human_model() {
 #[tokio::test]
 async fn override_config() {
     let _guard = MUTEX.lock().await;
-    let options = launch_options().with_override_config(Config::new().with("maxVisits", 1));
+    let options = launch_options().with_override_config(Config::new().with_max_visits(1));
     let mut engine = Engine::launch(&options).unwrap();
     let request = AnalysisRequest::new(
         "override_config".to_string(),
@@ -108,4 +111,32 @@ async fn quit_without_waiting() {
     drop(engine.stdin);
 
     assert_matches!(engine.stdout.next().await, None);
+}
+
+#[tokio::test]
+async fn config() {
+    let _guard = MUTEX.lock().await;
+    let config = Config::new()
+        .with_analysis_pv_len(50)
+        .with_anti_mirror(true)
+        .with_human_sl_profile("proyear_2023")
+        .with_ignore_pre_root_history(false)
+        .with_max_time(1.0)
+        .with_max_visits(1)
+        .with_num_analysis_threads(1)
+        .with_num_search_threads_per_analysis_thread(1)
+        .with_playout_doubling_advantage(3.0)
+        .with_report_analysis_winrates_as(Side::SideToMove)
+        .with_root_num_symmetries_to_sample(8)
+        .with_wide_root_noise(1.0);
+    let mut engine = Engine::launch(&launch_options().with_override_config(config)).unwrap();
+    let mut lines = BufReader::new(engine.stderr.take().unwrap()).lines();
+    while let Ok(Some(line)) = lines.next_line().await {
+        println!("> {line}");
+        assert!(!line.contains("Unused key"));
+        if line.contains("Started, ready to begin handling requests") {
+            return;
+        }
+    }
+    assert!(false, "Engine did not start successfully");
 }
