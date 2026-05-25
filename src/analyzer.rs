@@ -29,7 +29,7 @@ pub struct Analyzer<W: WarningHandling = WarningsAsErrors> {
     pub child_process: Child,
 
     next_id: u32,
-    pending_requests: PendingRequests<W>,
+    pending_requests: Arc<RwLock<PendingRequests<W>>>,
 }
 
 impl<W: WarningHandling> Analyzer<W> {
@@ -198,7 +198,7 @@ impl<W: WarningHandling> Analyzer<W> {
             height: request.board_y_size,
         };
 
-        let mut requests = self.pending_requests.requests.write().await;
+        let mut pending = self.pending_requests.write().await;
         self.stdin
             .send(&engine::Request::Analyze(request.into_engine_request(
                 id.clone(),
@@ -206,7 +206,7 @@ impl<W: WarningHandling> Analyzer<W> {
                 priorities,
             )))
             .await?;
-        requests.insert(id.clone(), pending_request);
+        pending.requests.insert(id.clone(), pending_request);
         Ok(GameAnalysisProgress::<W> { id, positions })
     }
 
@@ -218,12 +218,12 @@ impl<W: WarningHandling> Analyzer<W> {
             git_hash: String::new(),
         }));
 
-        let mut requests = self.pending_requests.query_version_requests.write().await;
+        let mut pending = self.pending_requests.write().await;
         self.stdin
             .send(&engine::Request::QueryVersion { id: id.clone() })
             .await?;
-        requests.insert(id, sender);
-        drop(requests);
+        pending.query_version_requests.insert(id, sender);
+        drop(pending);
 
         receiver.finish().await
     }
@@ -233,12 +233,12 @@ impl<W: WarningHandling> Analyzer<W> {
         let id = self.generate_id();
         let (sender, receiver) = channel(W::ok(()));
 
-        let mut requests = self.pending_requests.clear_cache_requests.write().await;
+        let mut pending = self.pending_requests.write().await;
         self.stdin
             .send(&engine::Request::ClearCache { id: id.clone() })
             .await?;
-        requests.insert(id, sender);
-        drop(requests);
+        pending.clear_cache_requests.insert(id, sender);
+        drop(pending);
 
         receiver.finish().await
     }
@@ -281,7 +281,7 @@ impl<W: WarningHandling> Analyzer<W> {
         let id = self.generate_id();
         let (sender, receiver) = channel(W::ok(()));
 
-        let mut requests = self.pending_requests.terminate_requests.write().await;
+        let mut pending = self.pending_requests.write().await;
         self.stdin
             .send(&engine::Request::Terminate {
                 id: id.clone(),
@@ -289,8 +289,8 @@ impl<W: WarningHandling> Analyzer<W> {
                 turn_numbers,
             })
             .await?;
-        requests.insert(id, sender);
-        drop(requests);
+        pending.terminate_requests.insert(id, sender);
+        drop(pending);
 
         receiver.finish().await
     }
@@ -315,15 +315,15 @@ impl<W: WarningHandling> Analyzer<W> {
         let id = self.generate_id();
         let (sender, receiver) = channel(W::ok(()));
 
-        let mut requests = self.pending_requests.terminate_all_requests.write().await;
+        let mut pending = self.pending_requests.write().await;
         self.stdin
             .send(&engine::Request::TerminateAll {
                 id: id.clone(),
                 turn_numbers,
             })
             .await?;
-        requests.insert(id, sender);
-        drop(requests);
+        pending.terminate_all_requests.insert(id, sender);
+        drop(pending);
 
         receiver.finish().await
     }
@@ -333,12 +333,12 @@ impl<W: WarningHandling> Analyzer<W> {
         let id = self.generate_id();
         let (sender, receiver) = channel(W::ok(vec![]));
 
-        let mut requests = self.pending_requests.query_models_requests.write().await;
+        let mut pending = self.pending_requests.write().await;
         self.stdin
             .send(&engine::Request::QueryModels { id: id.clone() })
             .await?;
-        requests.insert(id, sender);
-        drop(requests);
+        pending.query_models_requests.insert(id, sender);
+        drop(pending);
 
         receiver.finish().await
     }
@@ -363,7 +363,7 @@ where
             stderr: engine.stderr,
             child_process: engine.child_process,
             next_id: 1,
-            pending_requests: PendingRequests::<W>::default(),
+            pending_requests: Arc::default(),
         };
 
         tokio::spawn(handle_responses(
@@ -377,13 +377,13 @@ where
 
 async fn handle_responses<W: WarningHandling>(
     mut stdout: EngineStdout,
-    mut pending: PendingRequests<W>,
+    pending: Arc<RwLock<PendingRequests<W>>>,
 ) {
     while let Some(response) = stdout.next().await {
         let response = match response {
             Ok(response) => response,
             Err(e) => {
-                pending.poison_all(e).await;
+                pending.write().await.poison_all(e).await;
                 continue;
             }
         };
@@ -392,8 +392,8 @@ async fn handle_responses<W: WarningHandling>(
                 let id = response.id.clone();
                 let turn_number = response.turn_number;
                 let is_during_search = response.is_during_search;
-                let mut requests = pending.requests.write().await;
-                if let Some(request) = requests.get_mut(&id) {
+                let mut pending = pending.write().await;
+                if let Some(request) = pending.requests.get_mut(&id) {
                     if let Some(sender) = request.positions.get(&turn_number) {
                         let result = Some(AnalysisResult::from_engine_response(
                             response,
@@ -407,16 +407,16 @@ async fn handle_responses<W: WarningHandling>(
                         }
                     }
                     if request.positions.is_empty() {
-                        requests.remove(&id);
+                        pending.requests.remove(&id);
                     }
                 }
             }
             engine::Response::NoResults { id, turn_number } => {
-                let mut requests = pending.requests.write().await;
-                if let Some(request) = requests.get_mut(&id) {
+                let mut pending = pending.write().await;
+                if let Some(request) = pending.requests.get_mut(&id) {
                     request.positions.remove(&turn_number);
                     if request.positions.is_empty() {
-                        requests.remove(&id);
+                        pending.requests.remove(&id);
                     }
                 }
             }
@@ -425,52 +425,62 @@ async fn handle_responses<W: WarningHandling>(
                 version,
                 git_hash,
             } => {
-                let mut requests = pending.query_version_requests.write().await;
-                if let Some(sender) = requests.remove(&id) {
+                if let Some(sender) = pending.write().await.query_version_requests.remove(&id) {
                     sender
                         .send_modify(|r| W::set_result(r, VersionInfo { version, git_hash }))
                         .await;
                 }
             }
             engine::Response::ClearCache { id } => {
-                let mut requests = pending.clear_cache_requests.write().await;
-                if let Some(sender) = requests.remove(&id) {
+                if let Some(sender) = pending.write().await.clear_cache_requests.remove(&id) {
                     sender.send_modify(|r| W::set_result(r, ())).await;
                 }
             }
             engine::Response::Terminate { id, .. } => {
-                let mut requests = pending.terminate_requests.write().await;
-                if let Some(sender) = requests.remove(&id) {
+                if let Some(sender) = pending.write().await.terminate_requests.remove(&id) {
                     sender.send_modify(|r| W::set_result(r, ())).await;
                 }
             }
             engine::Response::TerminateAll { id, .. } => {
-                let mut requests = pending.terminate_all_requests.write().await;
-                if let Some(sender) = requests.remove(&id) {
+                if let Some(sender) = pending.write().await.terminate_all_requests.remove(&id) {
                     sender.send_modify(|r| W::set_result(r, ())).await;
                 }
             }
             engine::Response::QueryModels { id, models } => {
-                let mut requests = pending.query_models_requests.write().await;
-                if let Some(sender) = requests.remove(&id) {
+                if let Some(sender) = pending.write().await.query_models_requests.remove(&id) {
                     sender.send_modify(|r| W::set_result(r, models)).await;
                 }
             }
             engine::Response::GeneralError { error } => {
                 pending
+                    .write()
+                    .await
                     .poison_all(Error::KataGoGeneralError { error })
                     .await;
             }
             engine::Response::FieldError { id, error, field } => {
                 pending
+                    .write()
+                    .await
                     .poison(&id, Error::KataGoFieldError { error, field })
                     .await;
             }
             engine::Response::FieldWarning { id, warning, field } => {
-                pending.add_warning(&id, Warning { warning, field }).await;
+                pending
+                    .write()
+                    .await
+                    .add_warning(&id, Warning { warning, field })
+                    .await;
             }
         };
     }
+    let mut pending = pending.write().await;
+    pending.requests.clear();
+    pending.query_version_requests.clear();
+    pending.clear_cache_requests.clear();
+    pending.terminate_requests.clear();
+    pending.terminate_all_requests.clear();
+    pending.query_models_requests.clear();
 }
 
 impl<W: WarningHandling> std::fmt::Debug for Analyzer<W>
@@ -491,75 +501,75 @@ where
     }
 }
 
-#[derive(Default, Clone)]
+#[derive(Default)]
 struct PendingRequests<W: WarningHandling = WarningsAsErrors> {
-    requests: Arc<RwLock<HashMap<String, PendingRequest<W>>>>,
-    query_version_requests: Arc<RwLock<HashMap<String, Sender<WarningResult<VersionInfo, W>>>>>,
-    clear_cache_requests: Arc<RwLock<HashMap<String, Sender<WarningResult<(), W>>>>>,
-    terminate_requests: Arc<RwLock<HashMap<String, Sender<WarningResult<(), W>>>>>,
-    terminate_all_requests: Arc<RwLock<HashMap<String, Sender<WarningResult<(), W>>>>>,
-    query_models_requests: Arc<RwLock<HashMap<String, Sender<WarningResult<Vec<Model>, W>>>>>,
+    requests: HashMap<String, PendingRequest<W>>,
+    query_version_requests: HashMap<String, Sender<WarningResult<VersionInfo, W>>>,
+    clear_cache_requests: HashMap<String, Sender<WarningResult<(), W>>>,
+    terminate_requests: HashMap<String, Sender<WarningResult<(), W>>>,
+    terminate_all_requests: HashMap<String, Sender<WarningResult<(), W>>>,
+    query_models_requests: HashMap<String, Sender<WarningResult<Vec<Model>, W>>>,
 }
 
 impl<W: WarningHandling> PendingRequests<W> {
     async fn poison_all(&mut self, error: Error) {
-        for (_, request) in self.requests.write().await.drain() {
+        for (_, request) in self.requests.drain() {
             for sender in request.positions.values() {
                 sender.send_err(error.clone()).await;
             }
         }
 
-        for (_, sender) in self.query_version_requests.write().await.drain() {
+        for (_, sender) in self.query_version_requests.drain() {
             sender.send_err(error.clone()).await;
         }
 
-        for (_, sender) in self.clear_cache_requests.write().await.drain() {
+        for (_, sender) in self.clear_cache_requests.drain() {
             sender.send_err(error.clone()).await;
         }
 
-        for (_, sender) in self.terminate_requests.write().await.drain() {
+        for (_, sender) in self.terminate_requests.drain() {
             sender.send_err(error.clone()).await;
         }
 
-        for (_, sender) in self.terminate_all_requests.write().await.drain() {
+        for (_, sender) in self.terminate_all_requests.drain() {
             sender.send_err(error.clone()).await;
         }
 
-        for (_, sender) in self.query_models_requests.write().await.drain() {
+        for (_, sender) in self.query_models_requests.drain() {
             sender.send_err(error.clone()).await;
         }
     }
 
     async fn poison(&mut self, id: &str, error: Error) {
-        if let Some(request) = self.requests.write().await.remove(id) {
+        if let Some(request) = self.requests.remove(id) {
             for sender in request.positions.values() {
                 sender.send_err(error.clone()).await;
             }
         }
 
-        if let Some(sender) = self.query_version_requests.write().await.remove(id) {
+        if let Some(sender) = self.query_version_requests.remove(id) {
             sender.send_err(error.clone()).await;
         }
 
-        if let Some(sender) = self.clear_cache_requests.write().await.remove(id) {
+        if let Some(sender) = self.clear_cache_requests.remove(id) {
             sender.send_err(error.clone()).await;
         }
 
-        if let Some(sender) = self.terminate_requests.write().await.remove(id) {
+        if let Some(sender) = self.terminate_requests.remove(id) {
             sender.send_err(error.clone()).await;
         }
 
-        if let Some(sender) = self.terminate_all_requests.write().await.remove(id) {
+        if let Some(sender) = self.terminate_all_requests.remove(id) {
             sender.send_err(error.clone()).await;
         }
 
-        if let Some(sender) = self.query_models_requests.write().await.remove(id) {
+        if let Some(sender) = self.query_models_requests.remove(id) {
             sender.send_err(error.clone()).await;
         }
     }
 
     async fn add_warning(&mut self, id: &str, warning: Warning) {
-        if let Some(request) = self.requests.write().await.get(id) {
+        if let Some(request) = self.requests.get(id) {
             for sender in request.positions.values() {
                 sender
                     .send_modify(|r| W::add_warning(r, warning.clone()))
@@ -567,31 +577,31 @@ impl<W: WarningHandling> PendingRequests<W> {
             }
         }
 
-        if let Some(sender) = self.query_version_requests.write().await.get(id) {
+        if let Some(sender) = self.query_version_requests.get(id) {
             sender
                 .send_modify(|r| W::add_warning(r, warning.clone()))
                 .await;
         }
 
-        if let Some(sender) = self.clear_cache_requests.write().await.get(id) {
+        if let Some(sender) = self.clear_cache_requests.get(id) {
             sender
                 .send_modify(|r| W::add_warning(r, warning.clone()))
                 .await;
         }
 
-        if let Some(sender) = self.terminate_requests.write().await.get(id) {
+        if let Some(sender) = self.terminate_requests.get(id) {
             sender
                 .send_modify(|r| W::add_warning(r, warning.clone()))
                 .await;
         }
 
-        if let Some(sender) = self.terminate_all_requests.write().await.get(id) {
+        if let Some(sender) = self.terminate_all_requests.get(id) {
             sender
                 .send_modify(|r| W::add_warning(r, warning.clone()))
                 .await;
         }
 
-        if let Some(sender) = self.query_models_requests.write().await.get(id) {
+        if let Some(sender) = self.query_models_requests.get(id) {
             sender
                 .send_modify(|r| W::add_warning(r, warning.clone()))
                 .await;
