@@ -397,7 +397,6 @@ mod requests {
     }
 
     #[tokio::test]
-    #[ignore] // Ignored: Unreleased feature
     async fn include_no_result_value() {
         let mut engine = ENGINE.lock().await;
         let request = test_request("include_no_result_value").with_no_result_value();

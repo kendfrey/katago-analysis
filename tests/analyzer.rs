@@ -69,7 +69,7 @@ async fn main() {
         test!(include_moves_ownership_stdev, analyzer),
         test!(policy, analyzer),
         test!(include_policy, analyzer),
-        test!(include_no_result_value, analyzer).with_ignored_flag(true), // Ignored: Unreleased feature
+        test!(include_no_result_value, analyzer),
         test!(avoid_moves, analyzer),
         test!(allow_moves, analyzer),
         test!(override_settings, analyzer),
