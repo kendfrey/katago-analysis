@@ -371,6 +371,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with",
+ "sgf-parse",
  "thiserror",
  "tokio",
  "tokio-stream",
@@ -597,6 +598,12 @@ dependencies = [
  "quote",
  "syn",
 ]
+
+[[package]]
+name = "sgf-parse"
+version = "4.2.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b11229a863fdd9fb55912b1493e4c0e03d449a12e93c80f606ba8d241bce3756"
 
 [[package]]
 name = "shlex"

@@ -1,3 +1,6 @@
+#[cfg(feature = "sgf-parse")]
+use sgf_parse::{SgfNode, go::Prop};
+
 use crate::*;
 
 /// A game record to be analyzed, along with analysis settings.
@@ -289,6 +292,71 @@ impl AnalysisRequest {
     }
 }
 
+#[cfg(feature = "sgf-parse")]
+impl From<&SgfNode<Prop>> for AnalysisRequest {
+    /// Creates an analysis request from the root [`SgfNode`] of a game tree.
+    ///
+    /// This will set [`rules`](AnalysisRequest::rules), [`komi`](AnalysisRequest::komi) (if present),
+    /// [`board_x_size`](AnalysisRequest::board_x_size), [`board_y_size`](AnalysisRequest::board_y_size),
+    /// [`initial_stones`](AnalysisRequest::initial_stones) (if present),
+    /// [`initial_player`](AnalysisRequest::initial_player) (if present), and [`moves`](AnalysisRequest::moves),
+    /// based on the SGF data.
+    ///
+    /// Rules are determined by the first of the following that applies:
+    /// - If `RU` is present, its value will be used as a [named ruleset](Rules::Named).
+    /// - If `KM` is present and greater than 6.5, [Chinese rules](Rules::chinese) will be used.
+    /// - Otherwise, [Japanese rules](Rules::japanese) will be used.
+    fn from(root: &SgfNode<Prop>) -> Self {
+        let (width, height) = match root.get_property("SZ") {
+            Some(Prop::SZ((w, h))) => (*w, *h),
+            _ => (19, 19),
+        };
+
+        let komi = match root.get_property("KM") {
+            Some(Prop::KM(k)) => Some(*k),
+            _ => None,
+        };
+
+        let rules = match root.get_property("RU") {
+            Some(Prop::RU(r)) => Rules::Named(r.text.clone()),
+            _ => match komi {
+                Some(k) if k > 6.5 => Rules::chinese(),
+                _ => Rules::japanese(),
+            },
+        };
+
+        let moves: Vec<(Player, Move)> = root
+            .main_variation()
+            .filter_map(|m| match m.get_move() {
+                Some(Prop::B(m)) => Some((Player::Black, (*m).into())),
+                Some(Prop::W(m)) => Some((Player::White, (*m).into())),
+                _ => None,
+            })
+            .collect();
+
+        let mut initial_stones: Vec<(Player, Coord)> = vec![];
+        if let Some(Prop::AB(ps)) = root.get_property("AB") {
+            initial_stones.extend(ps.iter().map(|p| (Player::Black, (*p).into())));
+        }
+        if let Some(Prop::AW(ps)) = root.get_property("AW") {
+            initial_stones.extend(ps.iter().map(|p| (Player::White, (*p).into())));
+        }
+
+        let initial_player: Option<Player> = match root.get_property("PL") {
+            Some(Prop::PL(p)) => Some((*p).into()),
+            _ => None,
+        };
+
+        let mut request = Self::new(rules, width, height, moves);
+        request.komi = komi;
+        if !initial_stones.is_empty() {
+            request = request.with_initial_stones(initial_stones);
+        }
+        request.initial_player = initial_player;
+        request
+    }
+}
+
 /// A list of moves that are either forbidden with [`AnalysisRequest::avoid_moves`] or allowed with
 /// [`AnalysisRequest::allow_moves`].
 #[derive(Debug, Clone)]
@@ -312,6 +380,147 @@ impl RestrictedMoves {
             player: self.player,
             moves: self.moves.into_iter().map(|m| m.to_gtp(height)).collect(),
             until_depth: self.until_depth,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[cfg(feature = "sgf-parse")]
+    mod sgf {
+        use std::collections::HashSet;
+
+        use crate::{AnalysisRequest, Coord, Move, Player, Rules};
+
+        #[test]
+        fn from_sgf() {
+            let sgf = "(;;B[pd](;B[dp];W[])(;W[dp];B[pp]))";
+            let request =
+                AnalysisRequest::from(sgf_parse::go::parse(sgf).unwrap().first().unwrap());
+            assert_eq!(request.rules, Rules::japanese());
+            assert_eq!(request.komi, None);
+            assert_eq!(request.board_x_size, 19);
+            assert_eq!(request.board_y_size, 19);
+            assert_eq!(request.initial_stones, None);
+            assert_eq!(request.initial_player, None);
+            assert_eq!(
+                request.moves,
+                vec![
+                    (Player::Black, Move::Move(Coord(15, 3))),
+                    (Player::Black, Move::Move(Coord(3, 15))),
+                    (Player::White, Move::Pass),
+                ]
+            );
+        }
+
+        #[test]
+        fn size() {
+            let sgf = "(;SZ[9:13];B[aa];W[im])";
+            let request =
+                AnalysisRequest::from(sgf_parse::go::parse(sgf).unwrap().first().unwrap());
+            assert_eq!(request.rules, Rules::japanese());
+            assert_eq!(request.komi, None);
+            assert_eq!(request.board_x_size, 9);
+            assert_eq!(request.board_y_size, 13);
+            assert_eq!(request.initial_stones, None);
+            assert_eq!(request.initial_player, None);
+            assert_eq!(
+                request.moves,
+                vec![
+                    (Player::Black, Move::Move(Coord(0, 0))),
+                    (Player::White, Move::Move(Coord(8, 12))),
+                ]
+            );
+        }
+
+        #[test]
+        fn komi() {
+            let sgf = "(;KM[7.5];B[pd];W[dp])";
+            let request =
+                AnalysisRequest::from(sgf_parse::go::parse(sgf).unwrap().first().unwrap());
+            assert_eq!(request.rules, Rules::chinese());
+            assert_eq!(request.komi, Some(7.5));
+            assert_eq!(request.board_x_size, 19);
+            assert_eq!(request.board_y_size, 19);
+            assert_eq!(request.initial_stones, None);
+            assert_eq!(request.initial_player, None);
+            assert_eq!(
+                request.moves,
+                vec![
+                    (Player::Black, Move::Move(Coord(15, 3))),
+                    (Player::White, Move::Move(Coord(3, 15))),
+                ]
+            );
+        }
+
+        #[test]
+        fn rules() {
+            let sgf = "(;RU[aga];B[pd];W[dp])";
+            let request =
+                AnalysisRequest::from(sgf_parse::go::parse(sgf).unwrap().first().unwrap());
+            assert_eq!(request.rules, Rules::Named("aga".to_string()));
+            assert_eq!(request.komi, None);
+            assert_eq!(request.board_x_size, 19);
+            assert_eq!(request.board_y_size, 19);
+            assert_eq!(request.initial_stones, None);
+            assert_eq!(request.initial_player, None);
+            assert_eq!(
+                request.moves,
+                vec![
+                    (Player::Black, Move::Move(Coord(15, 3))),
+                    (Player::White, Move::Move(Coord(3, 15))),
+                ]
+            );
+        }
+
+        #[test]
+        fn initial_stones() {
+            let sgf = "(;AB[pd][dp]AW[dd][pp];B[cc];W[qc])";
+            let request =
+                AnalysisRequest::from(sgf_parse::go::parse(sgf).unwrap().first().unwrap());
+            assert_eq!(request.rules, Rules::japanese());
+            assert_eq!(request.komi, None);
+            assert_eq!(request.board_x_size, 19);
+            assert_eq!(request.board_y_size, 19);
+            assert_eq!(
+                request
+                    .initial_stones
+                    .map(|s| HashSet::<(Player, Coord)>::from_iter(s)),
+                Some(HashSet::from_iter(vec![
+                    (Player::Black, Coord(15, 3)),
+                    (Player::Black, Coord(3, 15)),
+                    (Player::White, Coord(3, 3)),
+                    (Player::White, Coord(15, 15)),
+                ]))
+            );
+            assert_eq!(request.initial_player, None);
+            assert_eq!(
+                request.moves,
+                vec![
+                    (Player::Black, Move::Move(Coord(2, 2))),
+                    (Player::White, Move::Move(Coord(16, 2))),
+                ]
+            );
+        }
+
+        #[test]
+        fn initial_player() {
+            let sgf = "(;PL[W];B[pd];W[dp])";
+            let request =
+                AnalysisRequest::from(sgf_parse::go::parse(sgf).unwrap().first().unwrap());
+            assert_eq!(request.rules, Rules::japanese());
+            assert_eq!(request.komi, None);
+            assert_eq!(request.board_x_size, 19);
+            assert_eq!(request.board_y_size, 19);
+            assert_eq!(request.initial_stones, None);
+            assert_eq!(request.initial_player, Some(Player::White));
+            assert_eq!(
+                request.moves,
+                vec![
+                    (Player::Black, Move::Move(Coord(15, 3))),
+                    (Player::White, Move::Move(Coord(3, 15))),
+                ]
+            );
         }
     }
 }

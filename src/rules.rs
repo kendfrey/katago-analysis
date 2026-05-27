@@ -18,7 +18,7 @@ use serde::Serialize;
 ///     friendly_pass_ok: true,
 /// };
 /// ```
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
 #[serde(untagged, rename_all_fields = "camelCase")]
 pub enum Rules {
     /// A ruleset identified by name.

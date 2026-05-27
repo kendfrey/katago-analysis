@@ -417,6 +417,16 @@ pub enum Player {
     White,
 }
 
+#[cfg(feature = "sgf-parse")]
+impl From<sgf_parse::Color> for Player {
+    fn from(value: sgf_parse::Color) -> Self {
+        match value {
+            sgf_parse::Color::Black => Player::Black,
+            sgf_parse::Color::White => Player::White,
+        }
+    }
+}
+
 /// A board location in (x, y) format, where (0, 0) is the top-left corner of the board.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Coord(pub u8, pub u8);
@@ -458,6 +468,13 @@ impl Coord {
     }
 }
 
+#[cfg(feature = "sgf-parse")]
+impl From<sgf_parse::go::Point> for Coord {
+    fn from(c: sgf_parse::go::Point) -> Self {
+        Self(c.x, c.y)
+    }
+}
+
 /// A move in a game.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Move {
@@ -483,6 +500,16 @@ impl Move {
         match self {
             Move::Move(coord) => coord.to_gtp(height),
             Move::Pass => "pass".to_string(),
+        }
+    }
+}
+
+#[cfg(feature = "sgf-parse")]
+impl From<sgf_parse::go::Move> for Move {
+    fn from(m: sgf_parse::go::Move) -> Self {
+        match m {
+            sgf_parse::go::Move::Move(p) => Move::Move(p.into()),
+            sgf_parse::go::Move::Pass => Move::Pass,
         }
     }
 }
