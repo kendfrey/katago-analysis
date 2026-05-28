@@ -1,6 +1,6 @@
 [package]
 name = "katago-analysis"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 description = "A wrapper around KataGo's analysis engine."
 documentation = "https://docs.rs/katago-analysis"
