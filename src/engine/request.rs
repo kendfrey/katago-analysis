@@ -9,6 +9,10 @@ use crate::{Bonus, Config, Player, Rules};
 /// A request to the analysis engine.
 #[derive(Debug, Clone, Serialize)]
 #[serde(into = "Value")]
+#[expect(
+    clippy::large_enum_variant,
+    reason = "Boxing AnalysisRequest would be inconvenient, and very little would be gained"
+)]
 pub enum Request {
     /// Request the engine to analyze one or more positions.
     Analyze(AnalysisRequest),

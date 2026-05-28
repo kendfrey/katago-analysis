@@ -488,7 +488,7 @@ pub enum Move {
 impl Move {
     /// Converts a move from GTP format.
     pub fn from_gtp(s: &str, height: u8) -> Option<Self> {
-        if s.to_ascii_lowercase() == "pass" {
+        if s.eq_ignore_ascii_case("pass") {
             Some(Self::Pass)
         } else {
             Coord::from_gtp(s, height).map(Self::Move)

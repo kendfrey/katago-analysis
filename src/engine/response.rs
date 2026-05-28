@@ -6,6 +6,10 @@ use crate::{Model, Player};
 /// A response from the analysis engine.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(try_from = "Value")]
+#[expect(
+    clippy::large_enum_variant,
+    reason = "Boxing AnalysisResponse would be inconvenient, and very little would be gained"
+)]
 pub enum Response {
     /// The result of analyzing a position.
     Analyze(AnalysisResponse),
