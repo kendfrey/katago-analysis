@@ -31,3 +31,7 @@ tokio = { version = "1.52.1", features = ["macros", "rt-multi-thread"] }
 [[test]]
 name = "analyzer"
 harness = false
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

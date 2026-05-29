@@ -44,6 +44,7 @@
 //! }
 //! ```
 
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #![warn(missing_docs)]
 
 use std::{io, sync::Arc};
