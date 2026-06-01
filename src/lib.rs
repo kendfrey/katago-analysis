@@ -47,7 +47,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![warn(missing_docs)]
 
-use std::{io, sync::Arc};
+use std::{io, ops::Not, sync::Arc};
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -418,12 +418,33 @@ pub enum Player {
     White,
 }
 
+impl Not for Player {
+    type Output = Self;
+
+    fn not(self) -> Self::Output {
+        match self {
+            Player::Black => Player::White,
+            Player::White => Player::Black,
+        }
+    }
+}
+
 #[cfg(feature = "sgf-parse")]
 impl From<sgf_parse::Color> for Player {
     fn from(value: sgf_parse::Color) -> Self {
         match value {
             sgf_parse::Color::Black => Player::Black,
             sgf_parse::Color::White => Player::White,
+        }
+    }
+}
+
+#[cfg(feature = "sgf-parse")]
+impl From<Player> for sgf_parse::Color {
+    fn from(value: Player) -> Self {
+        match value {
+            Player::Black => sgf_parse::Color::Black,
+            Player::White => sgf_parse::Color::White,
         }
     }
 }
@@ -476,6 +497,13 @@ impl From<sgf_parse::go::Point> for Coord {
     }
 }
 
+#[cfg(feature = "sgf-parse")]
+impl From<Coord> for sgf_parse::go::Point {
+    fn from(c: Coord) -> Self {
+        sgf_parse::go::Point { x: c.0, y: c.1 }
+    }
+}
+
 /// A move in a game.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Move {
@@ -511,6 +539,16 @@ impl From<sgf_parse::go::Move> for Move {
         match m {
             sgf_parse::go::Move::Move(p) => Move::Move(p.into()),
             sgf_parse::go::Move::Pass => Move::Pass,
+        }
+    }
+}
+
+#[cfg(feature = "sgf-parse")]
+impl From<Move> for sgf_parse::go::Move {
+    fn from(m: Move) -> Self {
+        match m {
+            Move::Move(p) => sgf_parse::go::Move::Move(p.into()),
+            Move::Pass => sgf_parse::go::Move::Pass,
         }
     }
 }
