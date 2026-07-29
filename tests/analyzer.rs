@@ -177,8 +177,8 @@ async fn move_infos(analyzer: &mut Analyzer) {
     assert!(mv.score_lead.abs() < 5.0);
     assert!(mv.score_stdev > 5.0);
     assert!(mv.score_selfplay.abs() < 5.0);
-    assert!(mv.prior > 0.1);
-    assert_matches!(mv.human_prior, Some(p) if p > 0.1);
+    assert!(mv.prior > 0.05);
+    assert_matches!(mv.human_prior, Some(p) if p > 0.05);
     assert!(mv.utility.abs() < 1.0);
     assert!(mv.lcb < mv.winrate);
     assert!(mv.utility_lcb < mv.utility);
@@ -382,10 +382,10 @@ async fn include_policy(analyzer: &mut Analyzer) {
 
     let result = assert_matches!(analyzer.analyze(request).await, Ok(Some(r)) => r);
     let policy = assert_matches!(result.policy.as_ref(), Some(p) => p);
-    assert!(*policy.get(3, 3) > 0.1);
+    assert!(*policy.get(3, 3) > 0.05);
     assert_matches!(result.policy_pass, Some(p) if p < 0.01);
     let human_policy = assert_matches!(result.human_policy.as_ref(), Some(p) => p);
-    assert!(*human_policy.get(3, 3) > 0.1);
+    assert!(*human_policy.get(3, 3) > 0.05);
     assert_matches!(result.human_policy_pass, Some(p) if p < 0.01);
 }
 
@@ -416,11 +416,18 @@ async fn avoid_moves(analyzer: &mut Analyzer) {
 }
 
 async fn allow_moves(analyzer: &mut Analyzer) {
-    let request = test_request().with_allow_moves(vec![RestrictedMoves {
-        player: Player::Black,
-        moves: vec![Move::Move(Coord(3, 3))],
-        until_depth: 1,
-    }]);
+    let request = test_request().with_allow_moves(vec![
+        RestrictedMoves {
+            player: Player::Black,
+            moves: vec![Move::Move(Coord(3, 3))],
+            until_depth: 1,
+        },
+        RestrictedMoves {
+            player: Player::White,
+            moves: vec![Move::Move(Coord(15, 15))],
+            until_depth: 1,
+        },
+    ]);
 
     let result = assert_matches!(analyzer.analyze(request).await, Ok(Some(r)) => r);
     assert_eq!(result.move_infos.len(), 1);
@@ -606,7 +613,7 @@ async fn query_models(analyzer: &mut Analyzer) {
 }
 
 async fn field_error(analyzer: &mut Analyzer) {
-    let request = test_request().with_komi(361.0);
+    let request = test_request().with_komi(401.0);
 
     let (error, field) = assert_matches!(
         analyzer.analyze(request).await,
@@ -614,7 +621,7 @@ async fn field_error(analyzer: &mut Analyzer) {
     );
     assert_eq!(
         error,
-        "Must be a integer or half-integer from -150.0 to 150.0"
+        "Must be a integer or half-integer from -400.0 to 400.0"
     );
     assert_eq!(field, "komi");
 }

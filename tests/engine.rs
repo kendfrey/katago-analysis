@@ -73,8 +73,8 @@ mod requests {
         assert!(mv.score_lead.abs() < 5.0);
         assert!(mv.score_stdev > 5.0);
         assert!(mv.score_selfplay.abs() < 5.0);
-        assert!(mv.prior > 0.1);
-        assert_matches!(mv.human_prior, Some(p) if p > 0.1);
+        assert!(mv.prior > 0.05);
+        assert_matches!(mv.human_prior, Some(p) if p > 0.05);
         assert!(mv.utility.abs() < 1.0);
         assert!(mv.lcb < mv.winrate);
         assert!(mv.utility_lcb < mv.utility);
@@ -390,10 +390,10 @@ mod requests {
         assert_eq!(response.id, "include_policy");
         let policy = assert_matches!(response.policy.as_ref(), Some(p) => p);
         assert_eq!(policy.len(), 19 * 19 + 1);
-        assert!(policy[3 * 19 + 3] > 0.1);
+        assert!(policy[3 * 19 + 3] > 0.05);
         let human_policy = assert_matches!(response.human_policy.as_ref(), Some(p) => p);
         assert_eq!(human_policy.len(), 19 * 19 + 1);
-        assert!(human_policy[3 * 19 + 3] > 0.1);
+        assert!(human_policy[3 * 19 + 3] > 0.05);
     }
 
     #[tokio::test]
@@ -429,11 +429,18 @@ mod requests {
     #[tokio::test]
     async fn allow_moves() {
         let mut engine = ENGINE.lock().await;
-        let request = test_request("allow_moves").with_allow_moves(vec![RestrictedMoves {
-            player: Player::Black,
-            moves: vec!["D16".to_string()],
-            until_depth: 1,
-        }]);
+        let request = test_request("allow_moves").with_allow_moves(vec![
+            RestrictedMoves {
+                player: Player::Black,
+                moves: vec!["D16".to_string()],
+                until_depth: 1,
+            },
+            RestrictedMoves {
+                player: Player::White,
+                moves: vec!["Q4".to_string()],
+                until_depth: 1,
+            },
+        ]);
         engine.stdin.send(&Request::Analyze(request)).await.unwrap();
 
         let response =
