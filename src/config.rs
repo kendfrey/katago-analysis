@@ -1,6 +1,8 @@
 use serde::Serialize;
 use serde_json::{Map, Value};
 
+use crate::Player;
+
 /// KataGo configuration as used in [.cfg files](crate::engine::LaunchOptions::config_path), the
 /// [`-override-config`](crate::engine::LaunchOptions::with_override_config) command line argument, and the
 /// [`overrideSettings`](crate::engine::AnalysisRequest::with_override_settings) property of analysis requests.
@@ -131,6 +133,15 @@ pub enum Side {
 
     /// The player to move.
     SideToMove,
+}
+
+impl From<Player> for Side {
+    fn from(player: Player) -> Self {
+        match player {
+            Player::Black => Side::Black,
+            Player::White => Side::White,
+        }
+    }
 }
 
 impl From<Side> for Value {
