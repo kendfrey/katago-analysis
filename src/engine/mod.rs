@@ -53,6 +53,7 @@
 
 use std::{io, process::Stdio};
 
+use serde::{Deserialize, Serialize};
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     process::{Child, ChildStderr, ChildStdin, ChildStdout, Command},
@@ -61,6 +62,20 @@ use tokio_stream::{StreamExt, wrappers::LinesStream};
 
 use crate::{Config, Error, Result};
 
+macro_rules! deserialize_field {
+    ($name:ident, $type:ty $(, $($attr:tt)*)?) => {
+        fn $name(value: &serde_json::Value) -> std::result::Result<$type, serde_json::Error> {
+            #[derive(serde::Deserialize)]
+            #[serde(rename_all = "camelCase")]
+            struct De {
+                #[serde($($($attr)*)?)]
+                $name: $type,
+            }
+            serde_json::from_value::<De>(value.clone()).map(|v| v.$name)
+        }
+    };
+}
+
 mod request;
 pub use request::*;
 
@@ -68,7 +83,8 @@ mod response;
 pub use response::*;
 
 /// Command line options for launching KataGo.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct LaunchOptions {
     /// The path to the KataGo executable.
     pub katago_path: String,
@@ -227,3 +243,37 @@ pub type EngineStdout = tokio_stream::adapters::Map<
     LinesStream<BufReader<ChildStdout>>,
     fn(std::result::Result<String, io::Error>) -> Result<Response>,
 >;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn launch_options_serialize_deserialize() {
+        let request = LaunchOptions::new(
+            "katago.exe".to_string(),
+            "config.cfg".to_string(),
+            "model.gz".to_string(),
+        );
+        let serialized = serde_json::to_string(&request).unwrap();
+        let deserialized: LaunchOptions = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(request, deserialized);
+
+        let request = LaunchOptions {
+            katago_path: "katago.exe".to_string(),
+            config_path: "config.cfg".to_string(),
+            model_path: "model.gz".to_string(),
+            inherit_stderr: true,
+            human_model_path: Some("human_model.gz".to_string()),
+            override_config: Some(
+                Config::new()
+                    .with_max_visits(100)
+                    .with("unknownOption", true),
+            ),
+            quit_without_waiting: true,
+        };
+        let serialized = serde_json::to_string(&request).unwrap();
+        let deserialized: LaunchOptions = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(request, deserialized);
+    }
+}

@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// Rules settings for KataGo.
 ///
@@ -18,7 +18,7 @@ use serde::Serialize;
 ///     friendly_pass_ok: true,
 /// };
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(untagged, rename_all_fields = "camelCase")]
 pub enum Rules {
     /// A ruleset identified by name.
@@ -102,7 +102,7 @@ impl Rules {
 }
 
 /// Ko rules.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum Ko {
     /// The immediately previous position is forbidden.
@@ -116,7 +116,7 @@ pub enum Ko {
 }
 
 /// Scoring methods.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum Scoring {
     /// Area scoring as used in Chinese rules.
@@ -127,7 +127,7 @@ pub enum Scoring {
 }
 
 /// Group tax rules.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum Tax {
     /// All surrounded empty points count.
@@ -141,7 +141,7 @@ pub enum Tax {
 }
 
 /// Bonus points white receives in handicap games.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Bonus {
     /// White receives no bonus points.
     #[serde(rename = "0")]

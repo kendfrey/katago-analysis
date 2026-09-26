@@ -3,7 +3,8 @@ use std::ops::Index;
 use crate::{engine::AnalysisResponse, *};
 
 /// The result of analyzing a position.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AnalysisResult {
     /// Whether this is a partial analysis result. `false` indicates the position is finished analyzing.
     pub is_during_search: bool,
@@ -61,10 +62,12 @@ impl AnalysisResult {
 }
 
 /// The result of analyzing a candidate move.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct MoveInfo {
-    /// The move location in GTP format (`"A1"`, `"pass"`, etc.). This corresponds to the `move` field in KataGo's
+    /// The move location. This corresponds to the `move` field in KataGo's
     /// response.
+    #[serde(rename = "move")]
     pub mv: Move,
 
     /// The number of visits invested in this move.
@@ -174,7 +177,8 @@ impl MoveInfo {
 }
 
 /// The result of analyzing the root position.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RootInfo {
     /// The winrate, in the range [0, 1].
     pub winrate: f64,
@@ -274,7 +278,7 @@ impl RootInfo {
 /// A 2D matrix representing the game board.
 ///
 /// (0, 0) is the top-left corner of the board.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Matrix<T> {
     stride: usize,
 
@@ -304,5 +308,140 @@ impl<T> Index<Coord> for Matrix<T> {
 
     fn index(&self, Coord(x, y): Coord) -> &Self::Output {
         self.get(x, y)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn result_serialize_deserialize() {
+        let result = AnalysisResult {
+            is_during_search: false,
+            turn_number: 0,
+            move_infos: vec![],
+            root_info: RootInfo {
+                winrate: 0.5,
+                score_lead: 0.0,
+                score_selfplay: 0.0,
+                utility: 0.5,
+                visits: 100,
+                this_hash: "b".to_string(),
+                sym_hash: "a".to_string(),
+                current_player: Player::Black,
+                raw_winrate: 0.0,
+                raw_lead: 0.0,
+                raw_score_selfplay: 0.0,
+                raw_score_selfplay_stdev: 0.0,
+                raw_no_result_prob: 0.0,
+                raw_st_wr_error: 0.0,
+                raw_st_score_error: 0.0,
+                raw_var_time_left: 0.0,
+                human_winrate: None,
+                human_score_mean: None,
+                human_score_stdev: None,
+                human_st_wr_error: None,
+                human_st_score_error: None,
+            },
+            ownership: None,
+            ownership_stdev: None,
+            policy: None,
+            policy_pass: None,
+            human_policy: None,
+            human_policy_pass: None,
+        };
+        let serialized = serde_json::to_string(&result).unwrap();
+        let deserialized: AnalysisResult = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(result, deserialized);
+
+        let result = AnalysisResult {
+            is_during_search: true,
+            turn_number: 1,
+            move_infos: vec![
+                MoveInfo {
+                    mv: Move::Move(Coord(1, 0)),
+                    visits: 900,
+                    edge_visits: 9000,
+                    winrate: 1.0,
+                    score_lead: 1.0,
+                    score_stdev: 1.0,
+                    score_selfplay: 1.0,
+                    prior: 0.4,
+                    no_result_value: Some(0.1),
+                    human_prior: Some(0.5),
+                    utility: 1.0,
+                    lcb: 1.0,
+                    utility_lcb: 1.0,
+                    weight: 1.0,
+                    edge_weight: 1.0,
+                    order: 0,
+                    play_selection_value: 100.0,
+                    is_symmetry_of: Some(Coord(1, 1)),
+                    pv: vec![Move::Move(Coord(1, 1)), Move::Pass],
+                    pv_visits: Some(vec![100, 10]),
+                    pv_edge_visits: Some(vec![1000, 100]),
+                    ownership: Some(Matrix::from_raw(vec![1.0, 0.0, 0.9, 0.1], 2)),
+                    ownership_stdev: Some(Matrix::from_raw(vec![0.0, 0.0, 0.1, 0.1], 2)),
+                },
+                MoveInfo {
+                    mv: Move::Pass,
+                    visits: 100,
+                    edge_visits: 0,
+                    winrate: 0.9,
+                    score_lead: 0.0,
+                    score_stdev: 0.0,
+                    score_selfplay: 0.0,
+                    prior: 0.2,
+                    no_result_value: Some(0.0),
+                    human_prior: Some(0.4),
+                    utility: 0.0,
+                    lcb: 0.0,
+                    utility_lcb: 0.0,
+                    weight: 0.0,
+                    edge_weight: 0.0,
+                    order: 1,
+                    play_selection_value: 10.0,
+                    is_symmetry_of: None,
+                    pv: vec![],
+                    pv_visits: Some(vec![]),
+                    pv_edge_visits: Some(vec![]),
+                    ownership: Some(Matrix::from_raw(vec![1.0, 0.0, 0.9, 0.1], 2)),
+                    ownership_stdev: Some(Matrix::from_raw(vec![0.0, 0.0, 0.1, 0.1], 2)),
+                },
+            ],
+            root_info: RootInfo {
+                winrate: 1.0,
+                score_lead: 4.2,
+                score_selfplay: 3.7,
+                utility: 1.0,
+                visits: 1000,
+                this_hash: "2".to_string(),
+                sym_hash: "1".to_string(),
+                current_player: Player::White,
+                raw_winrate: 0.9,
+                raw_lead: 4.0,
+                raw_score_selfplay: 3.0,
+                raw_score_selfplay_stdev: 0.1,
+                raw_no_result_prob: 0.1,
+                raw_st_wr_error: 0.1,
+                raw_st_score_error: 0.1,
+                raw_var_time_left: 3.14,
+                human_winrate: Some(0.8),
+                human_score_mean: Some(3.5),
+                human_score_stdev: Some(0.2),
+                human_st_wr_error: Some(0.1),
+                human_st_score_error: Some(0.1),
+            },
+            ownership: Some(Matrix::from_raw(vec![1.0, 0.0, 0.9, 0.1], 2)),
+            ownership_stdev: Some(Matrix::from_raw(vec![0.0, 0.0, 0.1, 0.1], 2)),
+            policy: Some(Matrix::from_raw(vec![-1.0, -1.0, 0.4, 0.4], 2)),
+            policy_pass: Some(0.2),
+            human_policy: Some(Matrix::from_raw(vec![-1.0, -1.0, 0.5, 0.1], 2)),
+            human_policy_pass: Some(0.4),
+        };
+        let serialized = serde_json::to_string(&result).unwrap();
+        let deserialized: AnalysisResult = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(result, deserialized);
     }
 }

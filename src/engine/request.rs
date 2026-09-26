@@ -1,14 +1,15 @@
 use std::ops::Not;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use serde_with::skip_serializing_none;
 
 use crate::{Bonus, Config, Player, Rules};
 
 /// A request to the analysis engine.
-#[derive(Debug, Clone, Serialize)]
-#[serde(into = "Value")]
+#[skip_serializing_none]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(into = "Value", try_from = "Value")]
 #[expect(
     clippy::large_enum_variant,
     reason = "Boxing AnalysisRequest would be inconvenient, and very little would be gained"
@@ -112,9 +113,34 @@ impl From<Request> for Value {
     }
 }
 
+impl TryFrom<Value> for Request {
+    type Error = serde_json::Error;
+
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        deserialize_field!(id, String);
+        deserialize_field!(terminate_id, String);
+        deserialize_field!(turn_numbers, Option<Vec<usize>>);
+        match value.get("action").and_then(|v| v.as_str()) {
+            Some("query_version") => Ok(Request::QueryVersion { id: id(&value)? }),
+            Some("clear_cache") => Ok(Request::ClearCache { id: id(&value)? }),
+            Some("terminate") => Ok(Request::Terminate {
+                id: id(&value)?,
+                terminate_id: terminate_id(&value)?,
+                turn_numbers: turn_numbers(&value)?,
+            }),
+            Some("terminate_all") => Ok(Request::TerminateAll {
+                id: id(&value)?,
+                turn_numbers: turn_numbers(&value)?,
+            }),
+            Some("query_models") => Ok(Request::QueryModels { id: id(&value)? }),
+            _ => serde_json::from_value(value).map(Request::Analyze),
+        }
+    }
+}
+
 /// A game record to be analyzed, along with analysis settings.
 #[skip_serializing_none]
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AnalysisRequest {
     /// The request ID.
@@ -164,31 +190,31 @@ pub struct AnalysisRequest {
     pub analysis_pv_len: Option<usize>,
 
     /// Whether to return the ownership prediction.
-    #[serde(skip_serializing_if = "Not::not")]
+    #[serde(default, skip_serializing_if = "Not::not")]
     pub include_ownership: bool,
 
     /// Whether to return the standard deviation of the ownership prediction.
-    #[serde(skip_serializing_if = "Not::not")]
+    #[serde(default, skip_serializing_if = "Not::not")]
     pub include_ownership_stdev: bool,
 
     /// Whether to return the ownership prediction for each move.
-    #[serde(skip_serializing_if = "Not::not")]
+    #[serde(default, skip_serializing_if = "Not::not")]
     pub include_moves_ownership: bool,
 
     /// Whether to return the standard deviation of the ownership prediction for each move.
-    #[serde(skip_serializing_if = "Not::not")]
+    #[serde(default, skip_serializing_if = "Not::not")]
     pub include_moves_ownership_stdev: bool,
 
     /// Whether to return the neural network policy output.
-    #[serde(skip_serializing_if = "Not::not")]
+    #[serde(default, skip_serializing_if = "Not::not")]
     pub include_policy: bool,
 
     /// Whether to return the number of visits for each position in the principal variation.
-    #[serde(rename = "includePVVisits", skip_serializing_if = "Not::not")]
+    #[serde(default, rename = "includePVVisits", skip_serializing_if = "Not::not")]
     pub include_pv_visits: bool,
 
     /// Whether to return the predicted probability that the game will have a void result.
-    #[serde(skip_serializing_if = "Not::not")]
+    #[serde(default, skip_serializing_if = "Not::not")]
     pub include_no_result_value: bool,
 
     /// Moves which are forbidden.
@@ -385,7 +411,7 @@ impl AnalysisRequest {
 
 /// A list of moves that are either forbidden with [`AnalysisRequest::avoid_moves`] or allowed with
 /// [`AnalysisRequest::allow_moves`].
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RestrictedMoves {
     /// The player the move restriction applies to.
@@ -396,4 +422,141 @@ pub struct RestrictedMoves {
 
     /// The search depth within which the restriction applies.
     pub until_depth: u32,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn request_serialize_deserialize() {
+        let request = Request::Analyze(AnalysisRequest::new(
+            "request1".to_string(),
+            Rules::japanese(),
+            19,
+            19,
+            vec![],
+        ));
+        let serialized = serde_json::to_string(&request).unwrap();
+        let deserialized: Request = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(request, deserialized);
+
+        let request = Request::Analyze(AnalysisRequest {
+            id: "request2".to_string(),
+            rules: Rules::chinese(),
+            komi: Some(7.5),
+            white_handicap_bonus: Some(Bonus::NMinusOne),
+            board_x_size: 13,
+            board_y_size: 9,
+            initial_stones: Some(vec![
+                (Player::Black, "D4".to_string()),
+                (Player::Black, "K6".to_string()),
+            ]),
+            initial_player: Some(Player::Black),
+            moves: vec![(Player::White, "C6".to_string())],
+            analyze_turns: Some(vec![0, 1]),
+            max_visits: Some(1000),
+            root_policy_temperature: Some(0.5),
+            root_fpu_reduction_max: Some(0.5),
+            analysis_pv_len: Some(100),
+            include_ownership: true,
+            include_ownership_stdev: true,
+            include_moves_ownership: true,
+            include_moves_ownership_stdev: true,
+            include_policy: true,
+            include_pv_visits: true,
+            include_no_result_value: true,
+            avoid_moves: Some(vec![RestrictedMoves {
+                player: Player::Black,
+                moves: vec!["A1".to_string(), "B2".to_string()],
+                until_depth: 10,
+            }]),
+            allow_moves: Some(vec![RestrictedMoves {
+                player: Player::White,
+                moves: vec!["N9".to_string()],
+                until_depth: 10,
+            }]),
+            override_settings: Some(
+                Config::new()
+                    .with_max_visits(100)
+                    .with("unknownOption", true),
+            ),
+            report_during_search_every: Some(0.1),
+            priority: Some(-1),
+            priorities: Some(vec![-1, 1]),
+        });
+        let serialized = serde_json::to_string(&request).unwrap();
+        let deserialized: Request = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(request, deserialized);
+    }
+
+    #[test]
+    fn query_version_serialize_deserialize() {
+        let request = Request::QueryVersion {
+            id: "request1".to_string(),
+        };
+        let serialized = serde_json::to_string(&request).unwrap();
+        let deserialized: Request = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(request, deserialized);
+    }
+
+    #[test]
+    fn clear_cache_serialize_deserialize() {
+        let request = Request::ClearCache {
+            id: "request1".to_string(),
+        };
+        let serialized = serde_json::to_string(&request).unwrap();
+        let deserialized: Request = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(request, deserialized);
+    }
+
+    #[test]
+    fn terminate_serialize_deserialize() {
+        let request = Request::Terminate {
+            id: "request1".to_string(),
+            terminate_id: "request".to_string(),
+            turn_numbers: None,
+        };
+        let serialized = serde_json::to_string(&request).unwrap();
+        let deserialized: Request = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(request, deserialized);
+
+        let request = Request::Terminate {
+            id: "request1".to_string(),
+            terminate_id: "request".to_string(),
+            turn_numbers: Some(vec![0, 1]),
+        };
+        let serialized = serde_json::to_string(&request).unwrap();
+        let deserialized: Request = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(request, deserialized);
+    }
+
+    #[test]
+    fn terminate_all_serialize_deserialize() {
+        let request = Request::TerminateAll {
+            id: "request1".to_string(),
+            turn_numbers: None,
+        };
+        let serialized = serde_json::to_string(&request).unwrap();
+        let deserialized: Request = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(request, deserialized);
+
+        let request = Request::TerminateAll {
+            id: "request1".to_string(),
+            turn_numbers: Some(vec![0, 1]),
+        };
+        let serialized = serde_json::to_string(&request).unwrap();
+        let deserialized: Request = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(request, deserialized);
+    }
+
+    #[test]
+    fn query_models_serialize_deserialize() {
+        let request = Request::QueryModels {
+            id: "request1".to_string(),
+        };
+        let serialized = serde_json::to_string(&request).unwrap();
+        let deserialized: Request = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(request, deserialized);
+    }
 }

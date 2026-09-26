@@ -4,7 +4,8 @@ use sgf_parse::{SgfNode, go::Prop};
 use crate::*;
 
 /// A game record to be analyzed, along with analysis settings.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AnalysisRequest {
     /// The ruleset for this game.
     pub rules: Rules,
@@ -40,6 +41,7 @@ pub struct AnalysisRequest {
     pub root_fpu_reduction_max: Option<f64>,
 
     /// The maximum length of the principal variation to return, not including the first move.
+    #[serde(rename = "analysisPVLen")]
     pub analysis_pv_len: Option<usize>,
 
     /// Whether to return the ownership prediction.
@@ -58,6 +60,7 @@ pub struct AnalysisRequest {
     pub include_policy: bool,
 
     /// Whether to return the number of visits for each position in the principal variation.
+    #[serde(rename = "includePVVisits")]
     pub include_pv_visits: bool,
 
     /// Whether to return the predicted probability that the game will have a void result.
@@ -359,7 +362,8 @@ impl From<&SgfNode<Prop>> for AnalysisRequest {
 
 /// A list of moves that are either forbidden with [`AnalysisRequest::avoid_moves`] or allowed with
 /// [`AnalysisRequest::allow_moves`].
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RestrictedMoves {
     /// The player the move restriction applies to.
     pub player: Player,
@@ -386,11 +390,91 @@ impl RestrictedMoves {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
+    #[test]
+    fn request_serialize_deserialize() {
+        let request = AnalysisRequest::new(Rules::japanese(), 19, 19, vec![]);
+        let serialized = serde_json::to_string(&request).unwrap();
+        let deserialized: AnalysisRequest = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(request, deserialized);
+
+        let request = AnalysisRequest {
+            rules: Rules::Explicit {
+                ko: Ko::Positional,
+                scoring: Scoring::Area,
+                tax: Tax::Seki,
+                suicide: false,
+                has_button: false,
+                white_handicap_bonus: Bonus::NMinusOne,
+                friendly_pass_ok: true,
+            },
+            komi: Some(0.5),
+            white_handicap_bonus: Some(Bonus::Zero),
+            board_x_size: 13,
+            board_y_size: 9,
+            initial_stones: Some(vec![
+                (Player::Black, Coord(3, 7)),
+                (Player::White, Coord(0, 0)),
+            ]),
+            initial_player: Some(Player::White),
+            moves: vec![
+                (Player::Black, Move::Move(Coord(4, 2))),
+                (Player::White, Move::Pass),
+            ],
+            max_visits: Some(10),
+            root_policy_temperature: Some(0.9),
+            root_fpu_reduction_max: Some(0.2),
+            analysis_pv_len: Some(5),
+            include_ownership: true,
+            include_ownership_stdev: true,
+            include_moves_ownership: true,
+            include_moves_ownership_stdev: true,
+            include_policy: true,
+            include_pv_visits: true,
+            include_no_result_value: true,
+            avoid_moves: Some(vec![
+                RestrictedMoves {
+                    player: Player::Black,
+                    moves: vec![],
+                    until_depth: 1,
+                },
+                RestrictedMoves {
+                    player: Player::White,
+                    moves: vec![Move::Pass, Move::Move(Coord(5, 5))],
+                    until_depth: 2,
+                },
+            ]),
+            allow_moves: Some(vec![
+                RestrictedMoves {
+                    player: Player::White,
+                    moves: vec![],
+                    until_depth: 1,
+                },
+                RestrictedMoves {
+                    player: Player::Black,
+                    moves: vec![Move::Pass, Move::Move(Coord(5, 5))],
+                    until_depth: 2,
+                },
+            ]),
+            override_settings: Some(
+                Config::new()
+                    .with_max_visits(100)
+                    .with("unknownOption", true),
+            ),
+            report_during_search_every: Some(0.2),
+            priority: Some(-1),
+        };
+        let serialized = serde_json::to_string(&request).unwrap();
+        let deserialized: AnalysisRequest = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(request, deserialized);
+    }
+
     #[cfg(feature = "sgf-parse")]
     mod sgf {
         use std::collections::HashSet;
 
-        use crate::{AnalysisRequest, Coord, Move, Player, Rules};
+        use super::*;
 
         #[test]
         fn from_sgf() {

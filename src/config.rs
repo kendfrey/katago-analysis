@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
 use crate::Player;
@@ -13,7 +13,7 @@ use crate::Player;
 ///     .with("maxVisits", 1000)
 ///     .with("reportAnalysisWinratesAs", "BLACK");
 /// ```
-#[derive(Debug, Clone, Default, Serialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Config(Map<String, Value>);
 
@@ -123,7 +123,8 @@ impl Config {
 }
 
 /// A side which values can be calculated relative to.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "UPPERCASE")]
 pub enum Side {
     /// The black player.
     Black,
@@ -145,14 +146,7 @@ impl From<Player> for Side {
 }
 
 impl From<Side> for Value {
-    fn from(side: Side) -> Self {
-        Value::String(
-            match side {
-                Side::Black => "BLACK",
-                Side::White => "WHITE",
-                Side::SideToMove => "SIDETOMOVE",
-            }
-            .to_string(),
-        )
+    fn from(value: Side) -> Self {
+        serde_json::to_value(value).expect("side should be serializable")
     }
 }

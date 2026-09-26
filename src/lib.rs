@@ -143,7 +143,7 @@ impl From<serde_json::Error> for Error {
 }
 
 /// A warning returned by the analysis engine.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Warning {
     /// The warning message provided by KataGo.
     pub warning: String,
@@ -350,7 +350,7 @@ impl WarningHandling for ReturnWarnings {
 }
 
 /// A result that may contain warnings.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct MaybeWarnings<T> {
     /// The successful result value.
     pub value: T,
@@ -450,7 +450,7 @@ impl From<Player> for sgf_parse::Color {
 }
 
 /// A board location in (x, y) format, where (0, 0) is the top-left corner of the board.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Coord(pub u8, pub u8);
 
 impl Coord {
@@ -505,7 +505,8 @@ impl From<Coord> for sgf_parse::go::Point {
 }
 
 /// A move in a game.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(untagged)]
 pub enum Move {
     /// A move placing a stone at the specified coordinate.
     Move(Coord),
@@ -554,7 +555,7 @@ impl From<Move> for sgf_parse::go::Move {
 }
 
 /// KataGo's version information.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VersionInfo {
     /// A string indicating the most recent KataGo release version that this version is a descendant of,
     /// such as `"1.6.1"`.
@@ -566,7 +567,7 @@ pub struct VersionInfo {
 }
 
 /// Information about a neural network model.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Model {
     /// The model name.
@@ -592,7 +593,7 @@ pub struct Model {
 }
 
 /// The enabled state of a feature.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Enabled {
     /// The feature is disabled.

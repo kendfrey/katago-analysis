@@ -1,11 +1,13 @@
-use serde::Deserialize;
-use serde_json::{Map, Value};
+use serde::{Deserialize, Serialize};
+use serde_json::{Value, json};
+use serde_with::skip_serializing_none;
 
 use crate::{Model, Player};
 
 /// A response from the analysis engine.
-#[derive(Debug, Clone, Deserialize)]
-#[serde(try_from = "Value")]
+#[skip_serializing_none]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(into = "Value", try_from = "Value")]
 #[expect(
     clippy::large_enum_variant,
     reason = "Boxing AnalysisResponse would be inconvenient, and very little would be gained"
@@ -53,7 +55,6 @@ pub enum Response {
         terminate_id: String,
 
         /// The positions being terminated, if specified in the request.
-        #[serde(default)]
         turn_numbers: Option<Vec<usize>>,
     },
 
@@ -65,7 +66,6 @@ pub enum Response {
         id: String,
 
         /// The positions being terminated, if specified in the request.
-        #[serde(default)]
         turn_numbers: Option<Vec<usize>>,
     },
 
@@ -109,139 +109,158 @@ pub enum Response {
     },
 }
 
+impl From<Response> for Value {
+    fn from(response: Response) -> Self {
+        match response {
+            Response::Analyze(response) => {
+                serde_json::to_value(response).expect("response should be serializable")
+            }
+            Response::NoResults { id, turn_number } => json!({
+                "id": id,
+                "isDuringSearch": false,
+                "noResults": true,
+                "turnNumber": turn_number,
+            }),
+            Response::QueryVersion {
+                id,
+                version,
+                git_hash,
+            } => json!({
+                "id": id,
+                "action": "query_version",
+                "version": version,
+                "git_hash": git_hash,
+            }),
+            Response::ClearCache { id } => json!({
+                "id": id,
+                "action": "clear_cache",
+            }),
+            Response::Terminate {
+                id,
+                terminate_id,
+                turn_numbers,
+            } => {
+                let mut value = json!({
+                        "id": id,
+                        "action": "terminate",
+                        "terminateId": terminate_id,
+                    }
+                );
+                if let Some(turn_numbers) = turn_numbers {
+                    value
+                        .as_object_mut()
+                        .expect("value should be an object")
+                        .insert("turnNumbers".to_string(), json!(turn_numbers));
+                }
+                value
+            }
+            Response::TerminateAll { id, turn_numbers } => {
+                let mut value = json!({
+                        "id": id,
+                        "action": "terminate_all",
+                    }
+                );
+                if let Some(turn_numbers) = turn_numbers {
+                    value
+                        .as_object_mut()
+                        .expect("value should be an object")
+                        .insert("turnNumbers".to_string(), json!(turn_numbers));
+                }
+                value
+            }
+            Response::QueryModels { id, models } => json!({
+                "id": id,
+                "action": "query_models",
+                "models": models,
+            }),
+            Response::GeneralError { error } => json!({
+                "error": error,
+            }),
+            Response::FieldError { id, error, field } => json!({
+                "id": id,
+                "error": error,
+                "field": field,
+            }),
+            Response::FieldWarning { id, warning, field } => json!({
+                "id": id,
+                "warning": warning,
+                "field": field,
+            }),
+        }
+    }
+}
+
 impl TryFrom<Value> for Response {
-    type Error = String;
+    type Error = serde_json::Error;
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
-        fn try_parse_field_error(map: &Map<String, Value>) -> Option<Response> {
-            let error = map.get("error")?.as_str()?;
-            let field = map.get("field")?.as_str()?;
-            let id = map.get("id")?.as_str()?;
-            Some(Response::FieldError {
-                id: id.to_string(),
-                error: error.to_string(),
-                field: field.to_string(),
-            })
-        }
+        deserialize_field!(id, String);
+        deserialize_field!(version, String);
+        deserialize_field!(git_hash, String, rename = "git_hash");
+        deserialize_field!(terminate_id, String);
+        deserialize_field!(turn_numbers, Option<Vec<usize>>);
+        deserialize_field!(models, Vec<Model>);
+        deserialize_field!(error, String);
+        deserialize_field!(warning, String);
+        deserialize_field!(field, String);
+        deserialize_field!(turn_number, usize);
 
-        fn try_parse_general_error(map: &Map<String, Value>) -> Option<Response> {
-            let error = map.get("error")?.as_str()?;
-            Some(Response::GeneralError {
-                error: error.to_string(),
-            })
-        }
-
-        fn try_parse_field_warning(map: &Map<String, Value>) -> Option<Response> {
-            let warning = map.get("warning")?.as_str()?;
-            let field = map.get("field")?.as_str()?;
-            let id = map.get("id")?.as_str()?;
-            Some(Response::FieldWarning {
-                id: id.to_string(),
-                warning: warning.to_string(),
-                field: field.to_string(),
-            })
-        }
-
-        fn try_parse_query_version(map: &Map<String, Value>) -> Option<Response> {
-            let action = map.get("action")?.as_str()?;
-            if action != "query_version" {
-                return None;
+        match value.get("action").and_then(|v| v.as_str()) {
+            Some("query_version") => Ok(Response::QueryVersion {
+                id: id(&value)?,
+                version: version(&value)?,
+                git_hash: git_hash(&value)?,
+            }),
+            Some("clear_cache") => Ok(Response::ClearCache { id: id(&value)? }),
+            Some("terminate") => Ok(Response::Terminate {
+                id: id(&value)?,
+                terminate_id: terminate_id(&value)?,
+                turn_numbers: turn_numbers(&value)?,
+            }),
+            Some("terminate_all") => Ok(Response::TerminateAll {
+                id: id(&value)?,
+                turn_numbers: turn_numbers(&value)?,
+            }),
+            Some("query_models") => Ok(Response::QueryModels {
+                id: id(&value)?,
+                models: models(&value)?,
+            }),
+            _ => {
+                if let Some(map) = value.as_object() {
+                    if map.contains_key("error") {
+                        return if map.contains_key("id") {
+                            Ok(Response::FieldError {
+                                id: id(&value)?,
+                                error: error(&value)?,
+                                field: field(&value)?,
+                            })
+                        } else {
+                            Ok(Response::GeneralError {
+                                error: error(&value)?,
+                            })
+                        };
+                    } else if map.contains_key("warning") {
+                        return Ok(Response::FieldWarning {
+                            id: id(&value)?,
+                            warning: warning(&value)?,
+                            field: field(&value)?,
+                        });
+                    } else if map.contains_key("noResults") {
+                        return Ok(Response::NoResults {
+                            id: id(&value)?,
+                            turn_number: turn_number(&value)?,
+                        });
+                    }
+                }
+                serde_json::from_value(value).map(Response::Analyze)
             }
-            let id = map.get("id")?.as_str()?;
-            let version = map.get("version")?.as_str()?;
-            let git_hash = map.get("git_hash")?.as_str()?;
-            Some(Response::QueryVersion {
-                id: id.to_string(),
-                version: version.to_string(),
-                git_hash: git_hash.to_string(),
-            })
         }
-
-        fn try_parse_clear_cache(map: &Map<String, Value>) -> Option<Response> {
-            let action = map.get("action")?.as_str()?;
-            if action != "clear_cache" {
-                return None;
-            }
-            let id = map.get("id")?.as_str()?;
-            Some(Response::ClearCache { id: id.to_string() })
-        }
-
-        fn try_parse_no_results(map: &Map<String, Value>) -> Option<Response> {
-            map.get("noResults")?;
-            let id = map.get("id")?.as_str()?;
-            let turn_number = map.get("turnNumber")?.as_u64()? as usize;
-            Some(Response::NoResults {
-                id: id.to_string(),
-                turn_number,
-            })
-        }
-
-        fn try_parse_terminate(map: &Map<String, Value>) -> Option<Response> {
-            let action = map.get("action")?.as_str()?;
-            if action != "terminate" {
-                return None;
-            }
-            let id = map.get("id")?.as_str()?;
-            let terminate_id = map.get("terminateId")?.as_str()?;
-            let turn_numbers = map
-                .get("turnNumbers")
-                .and_then(|v| serde_json::from_value(v.clone()).ok());
-            Some(Response::Terminate {
-                id: id.to_string(),
-                terminate_id: terminate_id.to_string(),
-                turn_numbers,
-            })
-        }
-
-        fn try_parse_terminate_all(map: &Map<String, Value>) -> Option<Response> {
-            let action = map.get("action")?.as_str()?;
-            if action != "terminate_all" {
-                return None;
-            }
-            let id = map.get("id")?.as_str()?;
-            let turn_numbers = map
-                .get("turnNumbers")
-                .and_then(|v| serde_json::from_value(v.clone()).ok());
-            Some(Response::TerminateAll {
-                id: id.to_string(),
-                turn_numbers,
-            })
-        }
-
-        fn try_parse_query_models(map: &Map<String, Value>) -> Option<Response> {
-            let action = map.get("action")?.as_str()?;
-            if action != "query_models" {
-                return None;
-            }
-            let id = map.get("id")?.as_str()?;
-            let models = map.get("models")?;
-            Some(Response::QueryModels {
-                id: id.to_string(),
-                models: serde_json::from_value(models.clone()).ok()?,
-            })
-        }
-
-        fn try_parse_analysis(value: Value) -> Option<Response> {
-            serde_json::from_value(value).ok().map(Response::Analyze)
-        }
-
-        let map = value.as_object().ok_or("expected object")?;
-        try_parse_field_error(map)
-            .or_else(|| try_parse_general_error(map))
-            .or_else(|| try_parse_field_warning(map))
-            .or_else(|| try_parse_query_version(map))
-            .or_else(|| try_parse_clear_cache(map))
-            .or_else(|| try_parse_no_results(map))
-            .or_else(|| try_parse_terminate(map))
-            .or_else(|| try_parse_terminate_all(map))
-            .or_else(|| try_parse_query_models(map))
-            .or_else(|| try_parse_analysis(value))
-            .ok_or("unrecognized response format".to_string())
     }
 }
 
 /// The result of analyzing a position.
-#[derive(Debug, Clone, Deserialize)]
+#[skip_serializing_none]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AnalysisResponse {
     /// The request ID.
@@ -273,7 +292,8 @@ pub struct AnalysisResponse {
 }
 
 /// The result of analyzing a candidate move.
-#[derive(Debug, Clone, Deserialize)]
+#[skip_serializing_none]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MoveInfo {
     /// The move location in GTP format (`"A1"`, `"pass"`, etc.). This corresponds to the `move` field in KataGo's
@@ -349,7 +369,8 @@ pub struct MoveInfo {
 }
 
 /// The result of analyzing the root position.
-#[derive(Debug, Clone, Deserialize)]
+#[skip_serializing_none]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RootInfo {
     /// The winrate, in the range [0, 1].
@@ -414,4 +435,236 @@ pub struct RootInfo {
 
     /// The short-term score uncertainty prediction from the humanSL neural network.
     pub human_st_score_error: Option<f64>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Enabled;
+
+    #[test]
+    fn response_serialize_deserialize() {
+        let response = Response::Analyze(AnalysisResponse {
+            id: "request1".to_string(),
+            is_during_search: false,
+            turn_number: 0,
+            move_infos: vec![
+                MoveInfo {
+                    mv: "D4".to_string(),
+                    visits: 10,
+                    edge_visits: 100,
+                    winrate: 0.5,
+                    score_lead: 0.0,
+                    score_stdev: 1.0,
+                    score_selfplay: 0.0,
+                    prior: 0.1,
+                    no_result_value: Some(0.0),
+                    human_prior: Some(0.1),
+                    utility: 0.5,
+                    lcb: 0.0,
+                    utility_lcb: 0.0,
+                    weight: 100.0,
+                    edge_weight: 1000.0,
+                    order: 0,
+                    play_selection_value: 3.7,
+                    is_symmetry_of: None,
+                    pv: vec!["D4".to_string(), "pass".to_string()],
+                    pv_visits: Some(vec![5, 1]),
+                    pv_edge_visits: Some(vec![50, 10]),
+                    ownership: Some(vec![0.0, 0.5, 1.0]),
+                    ownership_stdev: Some(vec![0.0, 0.1, 0.2]),
+                },
+                MoveInfo {
+                    mv: "Q16".to_string(),
+                    visits: 10,
+                    edge_visits: 100,
+                    winrate: 0.5,
+                    score_lead: 0.0,
+                    score_stdev: 1.0,
+                    score_selfplay: 0.0,
+                    prior: 0.1,
+                    no_result_value: None,
+                    human_prior: Some(0.1),
+                    utility: 0.5,
+                    lcb: 0.0,
+                    utility_lcb: 0.0,
+                    weight: 100.0,
+                    edge_weight: 1000.0,
+                    order: 0,
+                    play_selection_value: 3.7,
+                    is_symmetry_of: Some("D4".to_string()),
+                    pv: vec![],
+                    pv_visits: None,
+                    pv_edge_visits: None,
+                    ownership: None,
+                    ownership_stdev: None,
+                },
+            ],
+            root_info: RootInfo {
+                winrate: 0.5,
+                score_lead: 0.0,
+                score_selfplay: 0.0,
+                utility: 0.5,
+                visits: 100,
+                this_hash: "b".to_string(),
+                sym_hash: "a".to_string(),
+                current_player: Player::Black,
+                raw_winrate: 0.5,
+                raw_lead: 0.0,
+                raw_score_selfplay: 0.0,
+                raw_score_selfplay_stdev: 1.0,
+                raw_no_result_prob: 0.0,
+                raw_st_wr_error: 0.0,
+                raw_st_score_error: 0.0,
+                raw_var_time_left: 4.2,
+                human_winrate: Some(0.5),
+                human_score_mean: Some(0.0),
+                human_score_stdev: None,
+                human_st_wr_error: None,
+                human_st_score_error: None,
+            },
+            ownership: Some(vec![0.0, 0.5, 1.0]),
+            ownership_stdev: None,
+            policy: None,
+            human_policy: None,
+        });
+        let serialized = serde_json::to_string(&response).unwrap();
+        let deserialized: Response = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(response, deserialized);
+    }
+
+    #[test]
+    fn no_results_serialize_deserialize() {
+        let response = Response::NoResults {
+            id: "request1".to_string(),
+            turn_number: 1,
+        };
+        let serialized = serde_json::to_string(&response).unwrap();
+        let deserialized: Response = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(response, deserialized);
+    }
+
+    #[test]
+    fn query_version_serialize_deserialize() {
+        let response = Response::QueryVersion {
+            id: "request1".to_string(),
+            version: "1.0".to_string(),
+            git_hash: "1234".to_string(),
+        };
+        let serialized = serde_json::to_string(&response).unwrap();
+        let deserialized: Response = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(response, deserialized);
+    }
+
+    #[test]
+    fn clear_cache_serialize_deserialize() {
+        let response = Response::ClearCache {
+            id: "request1".to_string(),
+        };
+        let serialized = serde_json::to_string(&response).unwrap();
+        let deserialized: Response = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(response, deserialized);
+    }
+
+    #[test]
+    fn terminate_serialize_deserialize() {
+        let response = Response::Terminate {
+            id: "request1".to_string(),
+            terminate_id: "request".to_string(),
+            turn_numbers: None,
+        };
+        let serialized = serde_json::to_string(&response).unwrap();
+        let deserialized: Response = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(response, deserialized);
+
+        let response = Response::Terminate {
+            id: "request1".to_string(),
+            terminate_id: "request".to_string(),
+            turn_numbers: Some(vec![0, 1]),
+        };
+        let serialized = serde_json::to_string(&response).unwrap();
+        let deserialized: Response = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(response, deserialized);
+    }
+
+    #[test]
+    fn terminate_all_serialize_deserialize() {
+        let response = Response::TerminateAll {
+            id: "request1".to_string(),
+            turn_numbers: None,
+        };
+        let serialized = serde_json::to_string(&response).unwrap();
+        let deserialized: Response = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(response, deserialized);
+
+        let response = Response::TerminateAll {
+            id: "request1".to_string(),
+            turn_numbers: Some(vec![0, 1]),
+        };
+        let serialized = serde_json::to_string(&response).unwrap();
+        let deserialized: Response = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(response, deserialized);
+    }
+
+    #[test]
+    fn query_models_serialize_deserialize() {
+        let response = Response::QueryModels {
+            id: "request1".to_string(),
+            models: vec![
+                Model {
+                    name: "model1".to_string(),
+                    internal_name: "model1-a".to_string(),
+                    max_batch_size: 100,
+                    uses_humansl_profile: false,
+                    version: 1,
+                    using_fp16: Enabled::Auto,
+                },
+                Model {
+                    name: "model2".to_string(),
+                    internal_name: "model2-a".to_string(),
+                    max_batch_size: 1000,
+                    uses_humansl_profile: true,
+                    version: 2,
+                    using_fp16: Enabled::True,
+                },
+            ],
+        };
+        let serialized = serde_json::to_string(&response).unwrap();
+        let deserialized: Response = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(response, deserialized);
+    }
+
+    #[test]
+    fn general_error_serialize_deserialize() {
+        let response = Response::GeneralError {
+            error: "There was an error".to_string(),
+        };
+        let serialized = serde_json::to_string(&response).unwrap();
+        let deserialized: Response = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(response, deserialized);
+    }
+
+    #[test]
+    fn field_error_serialize_deserialize() {
+        let response = Response::FieldError {
+            id: "request1".to_string(),
+            error: "There was an error".to_string(),
+            field: "someField".to_string(),
+        };
+        let serialized = serde_json::to_string(&response).unwrap();
+        let deserialized: Response = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(response, deserialized);
+    }
+
+    #[test]
+    fn field_warning_serialize_deserialize() {
+        let response = Response::FieldWarning {
+            id: "request1".to_string(),
+            warning: "There was a warning".to_string(),
+            field: "someField".to_string(),
+        };
+        let serialized = serde_json::to_string(&response).unwrap();
+        let deserialized: Response = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(response, deserialized);
+    }
 }
